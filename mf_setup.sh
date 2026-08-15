@@ -65,10 +65,6 @@ if [ "$LANG_CHOICE" == "2" ]; then
     MSG_FORMAT_OPUS="  [1] Opus（默认，体积小，兼容性好）"
     MSG_FORMAT_M4A="  [2] M4A（AAC，Apple 设备原生支持）"
     MSG_FORMAT_SET="  ✅ 音频格式:"
-    MSG_SLEEP_REQUESTS="── ⏱️ 间歇下载设置（防限流）──"
-    MSG_SLEEP_REQUESTS_PROMPT="  每次请求前等待秒数 (0=关闭): "
-    MSG_SLEEP_INTERVAL_PROMPT="  每次请求之间间隔秒数 (0=关闭): "
-    MSG_SLEEP_HINT="  建议值: 请求间隔 1-3 秒, 每次间隔 10-30 秒"
     MSG_GEN_CONFIG="── 📝 生成配置文件 ──"
     MSG_CONFIG_SAVED="  ✅ 配置文件已保存:"
     MSG_DONE="🎉 配置完成！"
@@ -116,10 +112,6 @@ else
     MSG_FORMAT_OPUS="  [1] Opus (default, smaller size, widely supported)"
     MSG_FORMAT_M4A="  [2] M4A (AAC, native support on Apple devices)"
     MSG_FORMAT_SET="  ✅ Audio format:"
-    MSG_SLEEP_REQUESTS="── ⏱️ Download throttling (avoid rate limits) ──"
-    MSG_SLEEP_REQUESTS_PROMPT="  Sleep seconds before each request (0=off): "
-    MSG_SLEEP_INTERVAL_PROMPT="  Sleep interval between requests (0=off): "
-    MSG_SLEEP_HINT="  Recommended: sleep-requests 1-3, sleep-interval 10-30"
     MSG_GEN_CONFIG="── 📝 Generating Config File ──"
     MSG_CONFIG_SAVED="  ✅ Config file saved:"
     MSG_DONE="🎉 Setup complete!"
@@ -275,17 +267,6 @@ fi
 echo "$MSG_FORMAT_SET $AUDIO_FORMAT"
 echo ""
 
-# ── 间歇下载设置 ─────────────────────────────
-echo "$MSG_SLEEP_REQUESTS"
-echo "$MSG_SLEEP_HINT"
-echo -n "$MSG_SLEEP_REQUESTS_PROMPT"
-read -r SLEEP_REQUESTS_INPUT
-SLEEP_REQUESTS="${SLEEP_REQUESTS_INPUT:-0}"
-echo -n "$MSG_SLEEP_INTERVAL_PROMPT"
-read -r SLEEP_INTERVAL_INPUT
-SLEEP_INTERVAL="${SLEEP_INTERVAL_INPUT:-0}"
-echo ""
-
 # ── 隐藏文件夹 ────────────────────────────────
 echo "$MSG_HIDDEN_FOLDERS"
 echo ""
@@ -345,8 +326,6 @@ YTDLP_PATH_Q=$(shell_quote "$YTDLP_PATH")
 NODE_PATH_Q=$(shell_quote "${NODE_PATH:-}")
 DEFAULT_ARTIST_DIR_Q=$(shell_quote "$DEFAULT_ARTIST_DIR")
 AUDIO_FORMAT_Q=$(shell_quote "$AUDIO_FORMAT")
-SLEEP_REQUESTS_Q=$(shell_quote "$SLEEP_REQUESTS")
-SLEEP_INTERVAL_Q=$(shell_quote "$SLEEP_INTERVAL")
 
 cat > "$CONFIG_FILE" << CFGEOF
 #!/bin/bash
@@ -375,8 +354,6 @@ MF_HIDDEN_DIRS=$HIDDEN_DIRS_STR
 MF_AUDIO_FORMAT=$AUDIO_FORMAT_Q
 
 # 播放列表下载间隔（秒，0=不限制）
-MF_PLAYLIST_SLEEP_REQUESTS=$SLEEP_REQUESTS_Q
-MF_PLAYLIST_SLEEP_INTERVAL=$SLEEP_INTERVAL_Q
 CFGEOF
 
 chmod +x "$CONFIG_FILE"

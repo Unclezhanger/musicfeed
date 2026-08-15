@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────
-# musicfeed V3.0.0
+# musicfeed V3.2.0
 # ─────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,9 +22,6 @@ source "$CONFIG_FILE"
 : "${MF_BASE_DIR:=$HOME/navidrome/music}"
 : "${MF_YTDLP:=yt-dlp}"
 : "${MF_DEFAULT_ARTIST_DIR:=musicfeed}"
-: "${MF_AUDIO_FORMAT:=opus}"
-: "${MF_PLAYLIST_SLEEP_REQUESTS:=0}"
-: "${MF_PLAYLIST_SLEEP_INTERVAL:=0}"
 : "${MF_NODE_PATH:=}"
 
 if [ ${#MF_HIDDEN_DIRS[@]} -eq 0 ]; then
@@ -65,7 +62,7 @@ ask() {
 }
 
 echo "=================================================="
-echo " 🎵 musicfeed V3.0.0"
+echo " 🎵 musicfeed V3.2.0"
 echo "=================================================="
 say "支持: 专辑 / 播放列表 / YTM电台 / 单曲" "Supports: albums / playlists / YTM radios / singles"
 echo "=================================================="
@@ -718,8 +715,6 @@ else
     FORMAT_ARGS=(-f ba -x --audio-format opus --audio-quality 0)
 fi
 
-SLEEP_REQUESTS="__SLEEP_REQUESTS__"
-SLEEP_INTERVAL="__SLEEP_INTERVAL__"
 
 cleanup_worker() {
     rm -f /tmp/existing_before_$$* /tmp/cover_$$* /tmp/cover_mv_$$* /tmp/cover_$$_* 2>/dev/null
@@ -749,14 +744,55 @@ cover_compress() {
 
 mv_write_id3() {
     python3 - "$@" << 'PYEOF'
-import sys, os
+import sys, os, re
+
+def split_artists(artist_str):
+    """智能拆分多艺人字符串，返回艺人列表"""
+    if not artist_str:
+        return ['Unknown Artist']
+    
+    # 先统一中文逗号为英文逗号 (中文逗号 Unicode: \uff0c)
+    artist_str = artist_str.replace('\uff0c', ',')
+    
+    # 定义分隔符模式（按优先级排序）
+    patterns = [
+        r'\s+feat\.\s+',
+        r'\s+ft\.\s+',
+        r'\s+&\s+',
+        r'\s*,\s*',  # 逗号 (已统一处理)
+        r'\s+with\s+',
+        r'\s+vs\.\s+'
+    ]
+    
+    result = [artist_str]
+    for pattern in patterns:
+        new_result = []
+        for item in result:
+            parts = re.split(pattern, item, flags=re.IGNORECASE)
+            new_result.extend([p.strip() for p in parts if p.strip()])
+        result = new_result
+    
+    # 去重并保持顺序
+    seen = set()
+    unique = []
+    for a in result:
+        if a and a not in seen and a.lower() not in seen:
+            seen.add(a.lower())
+            unique.append(a)
+    
+    return unique if unique else ['Unknown Artist']
+
 fpath = sys.argv[1]; title = sys.argv[2]; artist = sys.argv[3]
 album = sys.argv[4]; album_artist = sys.argv[5]; cover_file = sys.argv[6] if len(sys.argv) > 6 else ""
+
+# 拆分多艺人
+artists_list = split_artists(artist)
+
 if fpath.endswith('.m4a'):
     from mutagen.mp4 import MP4, MP4Cover
     audio = MP4(fpath)
     audio['\xa9nam'] = [title]
-    audio['\xa9ART'] = [artist]
+    audio['\xa9ART'] = artists_list  # 多艺人列表
     if album: audio['\xa9alb'] = [album]
     elif '\xa9alb' in audio: del audio['\xa9alb']
     if album_artist: audio['aART'] = [album_artist]
@@ -771,11 +807,11 @@ else:
     from mutagen.oggopus import OggOpus
     audio = OggOpus(fpath)
     audio['title'] = [title]
-    audio['artist'] = [artist]
+    audio['artist'] = artists_list  # 多艺人列表 (Vorbis Comments 原生支持多值)
     if album: audio['album'] = [album]
     elif 'album' in audio: del audio['album']
-    if album_artist: audio['album_artist'] = [album_artist]
-    elif 'album_artist' in audio: del audio['album_artist']
+    if album_artist: audio['ALBUMARTIST'] = [album_artist]  # 大写 ALBUMARTIST
+    elif 'ALBUMARTIST' in audio: del audio['ALBUMARTIST']
     if cover_file and os.path.exists(cover_file):
         from mutagen.flac import Picture
         import base64
@@ -791,15 +827,53 @@ PYEOF
 
 embed_cover() {
     python3 - "$@" << 'PYEOF'
-import sys, os, base64
+import sys, os, re, base64
+
+def split_artists(artist_str):
+    """智能拆分多艺人字符串，返回艺人列表"""
+    if not artist_str:
+        return ['Unknown Artist']
+    artist_str = artist_str.replace('\uff0c', ',')
+    patterns = [r'\s+feat\.\s+', r'\s+ft\.\s+', r'\s+&\s+', r'\s*,\s*', r'\s+with\s+', r'\s+vs\.\s+']
+    result = [artist_str]
+    for pattern in patterns:
+        new_result = []
+        for item in result:
+            parts = re.split(pattern, item, flags=re.IGNORECASE)
+            new_result.extend([p.strip() for p in parts if p.strip()])
+        result = new_result
+    seen = set()
+    unique = []
+    for a in result:
+        if a and a not in seen and a.lower() not in seen:
+            seen.add(a.lower())
+            unique.append(a)
+    return unique if unique else ['Unknown Artist']
+
 fpath = sys.argv[1]; aa = sys.argv[2]; an = sys.argv[3]
 hc = sys.argv[4]; em = sys.argv[5]; oa = sys.argv[6]; cf = sys.argv[7] if len(sys.argv) > 7 else ""
+
+# 从文件名提取艺人信息（如果有）
+basename = os.path.basename(fpath)
+artist_from_file = None
+if ' - ' in basename:
+    artist_part = basename.split(' - ')[0]
+    if artist_part and artist_part != 'NA':
+        artists_list = split_artists(artist_part)
+    else:
+        artists_list = []
+else:
+    artists_list = []
+
 try:
     if fpath.endswith('.m4a'):
         from mutagen.mp4 import MP4, MP4Cover
         audio = MP4(fpath)
         if aa and aa not in ('None','SKIP',''): audio['aART'] = [aa]
         elif 'aART' in audio: del audio['aART']
+        # 写入多艺人标签
+        if artists_list:
+            audio['\xa9ART'] = artists_list
         if em=='true' and oa and oa!='None' and not oa.startswith('%'): audio['\xa9alb'] = [oa]
         else: audio['\xa9alb'] = [an]
         if em=='true' and 'trkn' in audio: del audio['trkn']
@@ -808,12 +882,16 @@ try:
             print(f'  ✅ +Cover: {os.path.basename(fpath)}')
         else:
             print(f'  ✅ ID3: {os.path.basename(fpath)}')
+        audio.save()
     else:
         from mutagen.oggopus import OggOpus
         from mutagen.flac import Picture
         audio = OggOpus(fpath)
-        if aa and aa not in ('None','SKIP',''): audio['album_artist'] = [aa]
-        elif 'album_artist' in audio: del audio['album_artist']
+        if aa and aa not in ('None','SKIP',''): audio['ALBUMARTIST'] = [aa]
+        elif 'ALBUMARTIST' in audio: del audio['ALBUMARTIST']
+        # 写入多艺人标签
+        if artists_list:
+            audio['artist'] = artists_list
         if em=='true' and oa and oa!='None' and not oa.startswith('%'): audio['album'] = [oa]
         else: audio['album'] = [an]
         if em=='true' and 'tracknumber' in audio: del audio['tracknumber']
@@ -888,8 +966,6 @@ replace_token "__YTDLP__" "$MF_YTDLP"
 replace_token "__NODE_ARGS__" "$MF_NODE_ARGS"
 replace_token "__LOG_FILE__" "$LOG_FILE"
 replace_token "__AUDIO_FORMAT__" "$MF_AUDIO_FORMAT"
-replace_token "__SLEEP_REQUESTS__" "$MF_PLAYLIST_SLEEP_REQUESTS"
-replace_token "__SLEEP_INTERVAL__" "$MF_PLAYLIST_SLEEP_INTERVAL"
 
 echo 'ALBUMS=(' >> "$WORKER_SH"
 for config in "${ALBUM_CONFIGS[@]}"; do
@@ -927,8 +1003,6 @@ for album_entry in "${ALBUMS[@]}"; do
 
     ls "$FINAL_PATH"/*.$AUDIO_EXT 2>/dev/null > /tmp/existing_before_$$.txt
 
-    SLEEP_ARGS=""
-    { [ "$TYPE" = "playlist" ] || [ "$TYPE" = "ytm_radio" ]; } && [ "$SLEEP_INTERVAL" -gt 0 ] && SLEEP_ARGS="--sleep-requests $SLEEP_REQUESTS --sleep-interval $SLEEP_INTERVAL"
 
     if [ "$ENHANCED_MODE" != "true" ]; then
         log "🖼️ Unified cover..."
@@ -965,7 +1039,7 @@ for album_entry in "${ALBUMS[@]}"; do
         log "🚚 Default mode batch..."
         "$YTDLP" $NODE_ARGS --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
             --embed-metadata --no-embed-thumbnail --windows-filenames --yes-playlist \
-            --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json $SLEEP_ARGS \
+            --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json \
             "${FORMAT_ARGS[@]}" \
             --playlist-items "$SELECTION" \
             -o "%(artist,uploader)s - %(title)s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
@@ -975,7 +1049,7 @@ for album_entry in "${ALBUMS[@]}"; do
             log "🚚 Normal track batch..."
             "$YTDLP" $NODE_ARGS --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
                 --embed-metadata --no-embed-thumbnail --windows-filenames --yes-playlist \
-                --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json $SLEEP_ARGS \
+                --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json \
                 "${FORMAT_ARGS[@]}" \
                 --playlist-items "$NORMAL_SELECTION" \
                 -o "%(artist,uploader)s - %(title)s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
@@ -999,7 +1073,7 @@ for album_entry in "${ALBUMS[@]}"; do
             [ "$SELECTION" != "ALL" ] && [ -n "$SELECTION" ] && DOWNLOAD_ARGS="--playlist-items $SELECTION"
             "$YTDLP" $NODE_ARGS --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
                 --embed-metadata --no-embed-thumbnail --windows-filenames --yes-playlist \
-                --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json $SLEEP_ARGS \
+                --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json \
                 "${FORMAT_ARGS[@]}" $DOWNLOAD_ARGS \
                 -o "%(artist,uploader)s - %(title)s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
         fi
