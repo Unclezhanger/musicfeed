@@ -45,11 +45,13 @@ Choose your format once in `mf_setup.sh`:
 * **Opus** (default) — higher quality (~160kbps VBR), smaller files
 * **M4A** — native Apple device support, no transcoding needed
 
-## 🆕 v3.0.0 Highlights
+## 🆕 v3.1.5 Highlights
 
 ### 🎵 Enhanced Playlist Support
 - **Large playlist handling**: Successfully downloads playlists with over 100 tracks (thanks to recent yt-dlp updates).
-- **Global chart integration**: Built-in support for syncing global popular charts.
+- **Directional key navigation (v3.1.5+)**: Support for whiptail/dialog arrow-key selection, spacebar toggling, auto-scrolling lists, with automatic fallback to numeric input when dependencies are missing.
+- **Return to previous level**: Press 0 or ESC in all menus to navigate back, improving user experience.
+- **Global chart integration (Planned)**: Future versions will include built-in support for syncing global charts.
 
 ### 🖥️ Improved Interactive Experience
 - **Smart terminal pagination**: Playlist and folder selections now automatically paginate based on your terminal size.
