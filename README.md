@@ -45,20 +45,24 @@ Choose your format once in `mf_setup.sh`:
 * **Opus** (default) — higher quality (~160kbps VBR), smaller files
 * **M4A** — native Apple device support, no transcoding needed
 
-## 🆕 v3.1.5 Highlights
+## 🆕 What's New in v3.2.0
 
-### 🎵 Enhanced Playlist Support
-- **Large playlist handling**: Successfully downloads playlists with over 100 tracks (thanks to recent yt-dlp updates).
-- **Directional key navigation (v3.1.5+)**: Support for whiptail/dialog arrow-key selection, spacebar toggling, auto-scrolling lists, with automatic fallback to numeric input when dependencies are missing.
-- **Return to previous level**: Press 0 or ESC in all menus to navigate back, improving user experience.
-- **Global chart integration (Planned)**: Future versions will include built-in support for syncing global charts.
+### 🏷️ Multi-Artist Tag Support
+- **Smart artist splitting**: Automatically recognizes separators like `feat.`, `ft.`, `&`, `,`, `with`, `vs.` in track titles.
+- **Correct metadata format**: Writes multiple artists as separate values in Opus (Vorbis Comments) and M4A (MP4 atoms) formats.
+- **Perfect compatibility**: Displays correctly in Navidrome, Jellyfin, and Music Tag Web.
 
-### 🖥️ Improved Interactive Experience
-- **Smart terminal pagination**: Playlist and folder selections now automatically paginate based on your terminal size.
-- **Simplified configuration**: A cleaner setup wizard with better defaults.
+### 🛠️ Album Artist Standardization
+- **ALBUMARTIST field**: Uses the standard Vorbis Comments field name for proper library organization.
+- **VA handling**: Correctly handles Various Artists compilations.
 
-### 📁 Robust Folder Management
-- **Intelligent hidden folders**: Automatically detects and manages system-generated folders (`.DS_Store`, `@eaDir`).
+### 🚫 Removed Download Throttling
+- **No more HTTP 403 errors**: Removed artificial sleep delays that triggered YouTube's anti-bot detection.
+- **Smart retry mechanism**: Relies on yt-dlp's built-in intelligent retry logic for better success rates.
+
+### 🧹 Code Cleanup
+- **Back to stable core**: Refactored based on v3.0.0 stable kernel for maximum reliability.
+- **Cleaner codebase**: Removed experimental features for a focused, maintainable codebase.
 
 ## 📋 Requirements
 
