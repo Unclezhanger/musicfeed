@@ -2,6 +2,7 @@
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README_zh.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 [![Bash](https://img.shields.io/badge/bash-4%2B-green.svg)]()
+[![Release](https://img.shields.io/badge/release-v3.5.0-success.svg)]()
 
 # 🎵 musicfeed
 
@@ -34,53 +35,49 @@ musicfeed detects the link type before asking any questions:
 | YouTube Playlist | `PL...` in URL | MV mode: manual per-track input or auto strategy |
 | Single track | `watch?v=` | Smart metadata check & cover decision |
 
-### 3. Correct ID3 tags for self-hosted libraries
+### 3. Song titles that come out clean
+
+Radio and video titles arrive polluted (`【MV】【動態歌詞】(Official Audio)`…). musicfeed's extraction engine reconstructs `artist - title` from the original title and the uploader channel:
+
+- Book-title (`《》`) / bracket pollution-word stripping
+- Uploader ↔ title cross-matching instead of blind `" - "` splitting
+- No-metadata tracks are renamed and tagged with the extracted values
+
+### 4. Correct ID3 tags for self-hosted libraries
 
 `album_artist` is written correctly on every track. This matters for Navidrome and Jellyfin — without it, multi-artist albums split into multiple entries in your library.
 
-### 4. Dual audio format support
+### 5. A setup wizard and a TUI that always work
 
-Choose your format once in `mf_setup.sh`:
+`mf_setup.sh` detects every dependency and can **one-click install** everything (system packages via sudo, yt-dlp/mutagen isolated in a project venv — no `sudo pip`). The interactive UI degrades gracefully: `whiptail` → arrow-key menu → numeric input, so it works over any SSH session.
 
-* **Opus** (default) — higher quality (~160kbps VBR), smaller files
-* **M4A** — native Apple device support, no transcoding needed
+## 🆕 What's New in v3.5.0
 
-## 🆕 What's New in v3.2.0
+- **New title-extraction engine** for radios & MV playlists: book-title/bracket rules replace naive `" - "` splitting; uploader cross-matching; verified on 118 real radio tracks
+- **Renaming for no-metadata radio tracks**: extracted `artist - title` is applied to both tags and filenames (duplicate-safe rename)
+- **Meta safety net in MV mode**: when full info.json metadata exists, it overrides manually prefilled values
+- **Track selection rebuilt**: whiptail native checklist with a "select all" item, or type ranges like `1,2,3-5,9`; `0`/`b` steps back
+- **Per-step state machine**: every interactive step can go back one step
+- **Subfolder semantics**: create / rename / none — consistent between CLI and Web UI
+- **Isolated venv**: yt-dlp + mutagen live in the project's `.venv` — delete the folder to fully uninstall
 
-### 🏷️ Multi-Artist Tag Support
-- **Smart artist splitting**: Automatically recognizes separators like `feat.`, `ft.`, `&`, `,`, `with`, `vs.` in track titles.
-- **Correct metadata format**: Writes multiple artists as separate values in Opus (Vorbis Comments) and M4A (MP4 atoms) formats.
-- **Perfect compatibility**: Displays correctly in Navidrome, Jellyfin, and Music Tag Web.
+<details>
+<summary>v3.2.0 highlights</summary>
 
-### 🛠️ Album Artist Standardization
-- **ALBUMARTIST field**: Uses the standard Vorbis Comments field name for proper library organization.
-- **VA handling**: Correctly handles Various Artists compilations.
+- Multi-artist tag support (`feat.` / `ft.` / `&` splitting, VA handling)
+- Standard `ALBUMARTIST` field
+- Removed download throttling (no more HTTP 403 from anti-bot detection)
 
-### 🚫 Removed Download Throttling
-- **No more HTTP 403 errors**: Removed artificial sleep delays that triggered YouTube's anti-bot detection.
-- **Smart retry mechanism**: Relies on yt-dlp's built-in intelligent retry logic for better success rates.
-
-### 🧹 Code Cleanup
-- **Back to stable core**: Refactored based on v3.0.0 stable kernel for maximum reliability.
-- **Cleaner codebase**: Removed experimental features for a focused, maintainable codebase.
+</details>
 
 ## 📋 Requirements
 
 * **bash 4.0+**
-* **yt-dlp** (must be the **latest version**)
 * `ffmpeg`
-* `python3` + **mutagen** (`pip3 install mutagen`)
-* `node` (optional but recommended)
+* `python3` (with `venv`)
+* `node` ≥ 20 (optional, for concurrency)
 
-> **⚠️ macOS Users Note:**
-
-> This project requires Bash 4.0+. macOS ships with the outdated Bash 3.2.
-
-Installation Issue on Older macOS:
-If you are on older macOS versions (e.g., Catalina), installing Bash 4 via Homebrew (`brew install bash`) may fail or hang during the compilation process. This is a known system compatibility issue.
-
-Solution:
-We recommend downloading a pre-compiled Bash binary package (e.g., from `osx-brew-builds` or similar sources) to bypass the compilation step.
+> **⚠️ macOS Users Note:** macOS ships with Bash 3.2; install Bash 4+ via Homebrew (`brew install bash`). yt-dlp and mutagen are installed into the project venv automatically by `mf_setup.sh`.
 
 ## 📦 Quick Start
 
@@ -88,23 +85,31 @@ We recommend downloading a pre-compiled Bash binary package (e.g., from `osx-bre
 git clone https://github.com/Unclezhanger/musicfeed.git
 cd musicfeed
 
-# One-time setup (select music path, default folder, audio format)
+# One-time setup (deps check + one-click install, music path, audio format)
 bash mf_setup.sh
 
 # Start downloading
 bash musicfeed.sh
 ```
 
-`mf_setup.sh` auto-detects all dependencies and guides you through configuration. Re-run anytime to change settings.
+## 🖥️ Prefer a Web UI?
+
+This repo is the **CLI edition**. The companion project [**mfui**](https://github.com/Unclezhanger/mfui) adds:
+
+- A web interface (paste links, pick tracks, configure, download — with live logs)
+- Multi-link queue downloads with unified progress
+- PWA support (install on your phone, share links straight into the download queue)
+- **Docker** distribution (single container, recommended for NAS/home-server users)
+
+Both share the same download kernel — your `mf_config.sh` works in either.
 
 ## 📁 Project Structure
 
 | File | Purpose |
 |------|---------|
-| `musicfeed.sh` | Main script |
+| `musicfeed.sh` | Main script (self-contained) |
 | `mf_setup.sh` | Setup wizard |
 | `mf_config.sh` | Generated config (do not edit manually) |
-
 
 ## ⚠️ Disclaimer
 
@@ -113,9 +118,3 @@ For personal and educational use only. Please respect copyright laws in your reg
 ## 📄 License
 
 MIT License © 2026 Unclezhanger
-
----
-
-**About**: musicfeed is a focused tool designed specifically for the YouTube Music ecosystem, providing intelligent batch downloading with correct metadata handling for self-hosted music libraries.
-
-**Topics**: `bash` `cover-art` `id3-tags` `jellyfin` `meta` `music` `navidrome` `plex` `youtube`
