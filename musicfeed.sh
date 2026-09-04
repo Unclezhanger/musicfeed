@@ -1343,6 +1343,7 @@ if fpath.endswith('.m4a'):
         print(f'  ✅ +Cover: {os.path.basename(fpath)}')
     else:
         print(f'  ✅ ID3: {os.path.basename(fpath)}')
+    audio.save()
 else:
     from mutagen.oggopus import OggOpus
     audio = OggOpus(fpath)
@@ -1718,7 +1719,7 @@ for album_entry in "${ALBUMS[@]}"; do
                 fi
                 rm -f "$JSON_FILE"
             fi
-            mv_write_id3 "$NEW_PATH" "$MV_TITLE" "$MV_ARTIST" "$MV_ALBUM" "" "$CF"
+            mv_write_id3 "$NEW_PATH" "$MV_TITLE" "$MV_ARTIST" "$MV_ALBUM" "" "$CF" >> "$LOG_FILE" 2>&1
             [ -n "$CF" ] && rm -f "$CF"
             echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
         done
@@ -1847,7 +1848,7 @@ for album_entry in "${ALBUMS[@]}"; do
                     fi
                 fi
                 FINAL_ALBUM="${ALBUM:-$TITLE}"
-                mv_write_id3 "$NEW_PATH" "$TITLE" "$ARTIST" "$FINAL_ALBUM" "" "$CF"
+                mv_write_id3 "$NEW_PATH" "$TITLE" "$ARTIST" "$FINAL_ALBUM" "" "$CF" >> "$LOG_FILE" 2>&1
                 [ -n "$CF" ] && rm -f "$CF"
                 echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
             fi
