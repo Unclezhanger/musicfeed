@@ -27,4 +27,7 @@ target/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# MusicFeed config
+mf_config.sh
 ```
