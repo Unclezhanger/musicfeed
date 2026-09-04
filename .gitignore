@@ -1,39 +1,30 @@
-*.sh.swp
-*.swx
-.DS_Store
-Thumbs.db
+```bash
+# Logs and temp files
 *.log
 *.tmp
-*.temp
-*.bak
-*.backup
-*.pyc
-*.pyo
-__pycache__/
-*.class
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies
 node_modules/
 venv/
 .venv/
-.env
-.env.local
-.env.*
-.vscode/
-.idea/
-*.swp
-*.swo
-coverage/
-htmlcov/
-.coverage
+__pycache__/
+*.pyc
+
+# Build artifacts
 dist/
 build/
 target/
-.gradle/
-.mypy_cache/
-.pytest_cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```

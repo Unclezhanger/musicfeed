@@ -1325,9 +1325,6 @@ def split_artists(artist_str):
 fpath = sys.argv[1]; title = sys.argv[2]; artist = sys.argv[3]
 album = sys.argv[4]; album_artist = sys.argv[5]; cover_file = sys.argv[6] if len(sys.argv) > 6 else ""
 
-# Debug logging
-print(f'  [DEBUG] fpath={fpath}, title={title}, artist={artist}, album={album}, cover_file={cover_file}', file=sys.stderr)
-
 # 拆分多艺人
 artists_list = split_artists(artist)
 
@@ -1345,10 +1342,6 @@ if fpath.endswith('.m4a'):
             audio['covr'] = [MP4Cover(img.read(), imageformat=MP4Cover.FORMAT_JPEG)]
         print(f'  ✅ +Cover: {os.path.basename(fpath)}')
     else:
-        if not cover_file:
-            print(f'  ⚠️ No cover file provided', file=sys.stderr)
-        elif not os.path.exists(cover_file):
-            print(f'  ⚠️ Cover file does not exist: {cover_file}', file=sys.stderr)
         print(f'  ✅ ID3: {os.path.basename(fpath)}')
     audio.save()
 else:
@@ -1368,10 +1361,6 @@ else:
             audio['metadata_block_picture'] = [base64.b64encode(pic.write()).decode('ascii')]
         print(f'  ✅ +Cover: {os.path.basename(fpath)}')
     else:
-        if not cover_file:
-            print(f'  ⚠️ No cover file provided', file=sys.stderr)
-        elif not os.path.exists(cover_file):
-            print(f'  ⚠️ Cover file does not exist: {cover_file}', file=sys.stderr)
         print(f'  ✅ ID3: {os.path.basename(fpath)}')
     audio.save()
 PYEOF
@@ -1727,20 +1716,10 @@ for album_entry in "${ALBUMS[@]}"; do
                     CC="/tmp/cover_$$_compressed.jpg"
                     cover_compress "$CF" "$CC" 2>/dev/null
                     if [ -f "$CC" ]; then rm -f "$CF"; CF="$CC"; log "  🖼️ Cover compressed"; fi
-                else
-                    log "  ⚠️ Cover download failed for MV"
                 fi
                 rm -f "$JSON_FILE"
-            else
-                log "  ⚠️ No info.json found for MV"
             fi
-            # Debug: log cover file status before writing tags
-            if [ -n "$CF" ] && [ -f "$CF" ]; then
-                log "  📝 Cover ready: $CF"
-            else
-                log "  ⚠️ Cover file missing or empty CF variable"
-            fi
-            mv_write_id3 "$NEW_PATH" "$MV_TITLE" "$MV_ARTIST" "$MV_ALBUM" "" "$CF"
+            mv_write_id3 "$NEW_PATH" "$MV_TITLE" "$MV_ARTIST" "$MV_ALBUM" "" "$CF" >> "$LOG_FILE" 2>&1
             [ -n "$CF" ] && rm -f "$CF"
             echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
         done
@@ -1869,7 +1848,7 @@ for album_entry in "${ALBUMS[@]}"; do
                     fi
                 fi
                 FINAL_ALBUM="${ALBUM:-$TITLE}"
-                mv_write_id3 "$NEW_PATH" "$TITLE" "$ARTIST" "$FINAL_ALBUM" "" "$CF"
+                mv_write_id3 "$NEW_PATH" "$TITLE" "$ARTIST" "$FINAL_ALBUM" "" "$CF" >> "$LOG_FILE" 2>&1
                 [ -n "$CF" ] && rm -f "$CF"
                 echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
             fi
