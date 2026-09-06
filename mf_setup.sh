@@ -485,14 +485,11 @@ echo ""
 echo "$(is_en && echo '── 🗂️ Hidden Folders ──' || echo '── 🗂️ 隐藏文件夹 ──')"
 echo ""
 
-# 候选 = 音乐库一级子目录 + 常见噪音目录（attachments/@eaDir/.DS_Store）
+# 候选 = 音乐库一级子目录（只列真实存在的目录，完全由用户勾选）
 hide_cands=()
 while IFS= read -r line; do
     hide_cands+=("$line")
 done < <(ls -F "$BASE_DIR" 2>/dev/null | grep '/$' | sed 's/\///')
-for classic in "attachments" "@eaDir" ".DS_Store"; do
-    [[ " ${hide_cands[*]} " == *" $classic "* ]] || hide_cands+=("$classic")
-done
 
 HIDDEN_DIRS=()
 if [ ${#hide_cands[@]} -gt 0 ]; then

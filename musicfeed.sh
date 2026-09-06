@@ -56,9 +56,7 @@ if [ -n "$MF_VENV" ] && [ -d "$MF_VENV/bin" ]; then
     fi
 fi
 
-if [ ${#MF_HIDDEN_DIRS[@]} -eq 0 ]; then
-    MF_HIDDEN_DIRS=("attachments" "@eaDir" ".DS_Store")
-fi
+# 隐藏文件夹完全由用户在 mf_setup 中勾选，为空 = 不隐藏任何目录
 
 # MF_NODE_ARGS 探测（line 31-36）
 MF_NODE_ARGS=""
