@@ -12,14 +12,14 @@
 
 ## 🖼️ 实际效果
 
-一条专辑链接 + 三首来自不同专辑的单曲，下载后放进
+一条专辑链接 + 四首来自不同专辑的单曲，下载后放进
 [Navidrome](https://www.navidrome.org/)——每首曲目都有正确的封面、
 `album` / `album_artist` 标签和干净的 `歌手 - 歌名` 文件名：
 
 ![Navidrome 音乐库效果](docs/navidrome-result.png)
 
-*从左到右：一张完整 YTM 专辑（统一封面）+ 三首带逐曲 MV 封面的单曲——
-各自以正确的标签归入独立专辑条目。*
+*从左到右：一张完整 YTM 专辑（统一封面）+ 四首带逐曲 MV 封面的单曲——
+MV 单曲的专辑名一律取歌名，每首都以正确封面和标签归入独立专辑条目。*
 
 ## 🆚 它有什么不同
 
@@ -114,6 +114,19 @@ bash mf_setup.sh
 # 开始下载
 bash musicfeed.sh
 ```
+
+### 可选：切换 yt-dlp nightly 版
+
+YouTube 的反爬机制更新频繁，yt-dlp 的 nightly 版跟进更快，往往比稳定版
+早数天修复失效问题。在项目目录执行（首次切换与后续更新都是同一条命令）：
+
+```bash
+.venv/bin/pip install --no-cache-dir --upgrade \
+  "yt-dlp @ https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.tar.gz"
+```
+
+或者重跑 `bash mf_setup.sh`——它会检测 venv 中已有的 nightly 并自动
+升级到最新版。
 
 ## 🖥️ 更想要 Web 界面？
 

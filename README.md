@@ -12,14 +12,15 @@ Most tools treat every YouTube link the same. musicfeed doesn't.
 
 ## 🖼️ The result
 
-One album link + three singles from different albums, downloaded and dropped
+One album link + four singles from different albums, downloaded and dropped
 into [Navidrome](https://www.navidrome.org/) — every track with the correct
 cover, `album` / `album_artist` tags and a clean `artist - title` filename:
 
 ![Navidrome library result](docs/navidrome-result.png)
 
-*Left to right: a full YTM album (unified cover) and three singles with
-per-track MV covers — each lands in its own album entry with proper tags.*
+*Left to right: a full YTM album (unified cover) and four singles with
+per-track MV covers — every MV single is tagged with album = song title, so
+each lands in its own album entry with the matching cover and proper tags.*
 
 ## 🆚 What makes it different
 
@@ -116,6 +117,21 @@ bash mf_setup.sh
 # Start downloading
 bash musicfeed.sh
 ```
+
+### Optional: switch to the yt-dlp nightly build
+
+YouTube updates its anti-scrape mechanisms frequently; the nightly build of
+yt-dlp tracks those changes and can fix breakage days before the stable
+release. Run this from the project directory (works for the initial switch
+and for refreshing an existing nightly):
+
+```bash
+.venv/bin/pip install --no-cache-dir --upgrade \
+  "yt-dlp @ https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.tar.gz"
+```
+
+Or re-run `bash mf_setup.sh` — it detects an existing nightly in the venv
+and refreshes it to the latest automatically.
 
 ## 🖥️ Prefer a Web UI?
 
