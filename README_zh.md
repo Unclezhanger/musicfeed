@@ -2,13 +2,24 @@
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README_zh.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 [![Bash](https://img.shields.io/badge/bash-4%2B-green.svg)]()
-[![Release](https://img.shields.io/badge/release-v3.5.0-success.svg)]()
+[![Release](https://img.shields.io/badge/release-v3.5.2-success.svg)]()
 
 # 🎵 musicfeed
 
 **面向 YouTube Music 生态的智能批量下载器。**
 
 大多数工具对所有 YouTube 链接一视同仁，musicfeed 不是。
+
+## 🖼️ 实际效果
+
+一条专辑链接 + 三首来自不同专辑的单曲，下载后放进
+[Navidrome](https://www.navidrome.org/)——每首曲目都有正确的封面、
+`album` / `album_artist` 标签和干净的 `歌手 - 歌名` 文件名：
+
+![Navidrome 音乐库效果](docs/navidrome-result.png)
+
+*从左到右：一张完整 YTM 专辑（统一封面）+ 三首带逐曲 MV 封面的单曲——
+各自以正确的标签归入独立专辑条目。*
 
 ## 🆚 它有什么不同
 
@@ -24,16 +35,19 @@ musicfeed 先读取曲目元数据，再决定封面策略：
 | MV / 视频曲目（无元数据） | 仅压缩，保留原始比例 |
 | YTM 专辑（统一模式） | 直接抓取播放列表级缩略图 |
 
-### 2. 四种链接，四种策略
+### 2. 五种链接，五种策略
 
 先识别链接类型，再开始交互：
 
 | 链接类型 | 识别方式 | 处理策略 |
 | --- | --- | --- |
-| YTM 专辑 | URL 含 `OLAK5uy_` | 统一专辑封面 + 正确的 `album_artist` 标签 |
+| YTM 专辑 | `OLAK5uy_` 分享链接 **或** `MPREb_` browse 链接 | 统一专辑封面 + 正确的 `album_artist` 标签 |
 | YTM 电台 / 合辑 | URL 含 `RDCLAK5uy_` | 逐曲独立封面 |
 | YouTube 播放列表 | URL 含 `PL...` | MV 模式：逐曲手动输入或自动策略 |
-| 单曲 | `watch?v=` | 智能元数据检查 + 封面决策 |
+| 单曲 | `watch?v=` / `youtu.be/` | 智能元数据检查 + 封面决策 |
+
+> `MPREb_…` 是在 music.youtube.com 地址栏直接复制的专辑链接，
+> `OLAK5uy_…` 是分享按钮生成的——两者指向同一专辑实体，处理方式完全一致。
 
 ### 3. 歌名出来就是干净的
 
@@ -51,7 +65,14 @@ musicfeed 先读取曲目元数据，再决定封面策略：
 
 `mf_setup.sh` 检测全部依赖，支持**一键安装**（系统包走 sudo，yt-dlp/mutagen 隔离在项目 venv——不碰系统 pip）。交互界面三层降级：`whiptail` → 方向键菜单 → 数字输入，任何 SSH 会话都能用。
 
-## 🆕 v3.5.0 更新内容
+## 🆕 v3.5.2 更新内容
+
+- **支持 YTM 专辑 browse 直链（`MPREb_…`）**——从 music.youtube.com 地址栏
+  复制的专辑链接不再报 "unknown link type"；与分享链接（`OLAK5uy_…`）
+  处理方式完全一致
+
+<details>
+<summary>v3.5.0 更新</summary>
 
 - **全新歌名提取引擎**（电台 & MV 播放列表）：书名号/括号规则替代简单 `" - "` 拆分 + 上传频道交叉匹配，118 首真实电台曲目验证
 - **无元数据电台曲目重命名**：提取出的 `歌手 - 歌名` 同时写入标签和文件名（重名安全）
@@ -60,6 +81,8 @@ musicfeed 先读取曲目元数据，再决定封面策略：
 - **逐步骤状态机**：每个交互步骤都可回退
 - **子文件夹语义**：创建 / 改名 / 不建，CLI 与 Web UI 一致
 - **隔离 venv**：yt-dlp + mutagen 装进项目 `.venv`，删目录即彻底卸载
+
+</details>
 
 <details>
 <summary>v3.2.0 更新</summary>

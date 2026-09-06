@@ -2,13 +2,24 @@
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README_zh.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 [![Bash](https://img.shields.io/badge/bash-4%2B-green.svg)]()
-[![Release](https://img.shields.io/badge/release-v3.5.0-success.svg)]()
+[![Release](https://img.shields.io/badge/release-v3.5.2-success.svg)]()
 
 # 🎵 musicfeed
 
 **Intelligent batch downloader for the YouTube Music ecosystem.**
 
 Most tools treat every YouTube link the same. musicfeed doesn't.
+
+## 🖼️ The result
+
+One album link + three singles from different albums, downloaded and dropped
+into [Navidrome](https://www.navidrome.org/) — every track with the correct
+cover, `album` / `album_artist` tags and a clean `artist - title` filename:
+
+![Navidrome library result](docs/navidrome-result.png)
+
+*Left to right: a full YTM album (unified cover) and three singles with
+per-track MV covers — each lands in its own album entry with proper tags.*
 
 ## 🆚 What makes it different
 
@@ -24,16 +35,20 @@ musicfeed reads each track's metadata **before** deciding what to do with the co
 | MV / video track (no metadata) | Compress only, keep original aspect ratio |
 | YTM album (unified mode) | Downloads the playlist-level thumbnail directly |
 
-### 2. Four link types, four different strategies
+### 2. Five link types, five different strategies
 
 musicfeed detects the link type before asking any questions:
 
 | Link type | Detection | Strategy |
 | --- | --- | --- |
-| YTM Album | `OLAK5uy_` in URL | Unified album cover + correct `album_artist` tag |
+| YTM Album | `OLAK5uy_` share link **or** `MPREb_` browse link | Unified album cover + correct `album_artist` tag |
 | YTM Radio / Mix | `RDCLAK5uy_` in URL | Per-track independent covers |
 | YouTube Playlist | `PL...` in URL | MV mode: manual per-track input or auto strategy |
-| Single track | `watch?v=` | Smart metadata check & cover decision |
+| Single track | `watch?v=` / `youtu.be/` | Smart metadata check & cover decision |
+
+> `MPREb_…` is the album link you get by copying the address bar on
+> music.youtube.com — `OLAK5uy_…` is what the share button produces. Both point
+> to the same album entity and are handled identically.
 
 ### 3. Song titles that come out clean
 
@@ -51,7 +66,15 @@ Radio and video titles arrive polluted (`【MV】【動態歌詞】(Official Aud
 
 `mf_setup.sh` detects every dependency and can **one-click install** everything (system packages via sudo, yt-dlp/mutagen isolated in a project venv — no `sudo pip`). The interactive UI degrades gracefully: `whiptail` → arrow-key menu → numeric input, so it works over any SSH session.
 
-## 🆕 What's New in v3.5.0
+## 🆕 What's New in v3.5.2
+
+- **YTM album browse links (`MPREb_…`) now recognized** — pasting an album URL
+  copied from the music.youtube.com address bar no longer fails with
+  "unknown link type"; share links (`OLAK5uy_…`) and browse links are handled
+  identically
+
+<details>
+<summary>v3.5.0 highlights</summary>
 
 - **New title-extraction engine** for radios & MV playlists: book-title/bracket rules replace naive `" - "` splitting; uploader cross-matching; verified on 118 real radio tracks
 - **Renaming for no-metadata radio tracks**: extracted `artist - title` is applied to both tags and filenames (duplicate-safe rename)
@@ -60,6 +83,8 @@ Radio and video titles arrive polluted (`【MV】【動態歌詞】(Official Aud
 - **Per-step state machine**: every interactive step can go back one step
 - **Subfolder semantics**: create / rename / none — consistent between CLI and Web UI
 - **Isolated venv**: yt-dlp + mutagen live in the project's `.venv` — delete the folder to fully uninstall
+
+</details>
 
 <details>
 <summary>v3.2.0 highlights</summary>

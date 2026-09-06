@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────
-# musicfeed V3.5.1
+# musicfeed V3.5.2
 # ─────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -373,7 +373,9 @@ PYEOF
 # 输出: album | ytm_radio | playlist | single | unknown
 get_link_type() {
     local url="$1"
-    [[ "$url" =~ OLAK5uy_ ]] && { echo "album"; return; }
+    # OLAK5uy_ = YTM 分享链接；MPREb_ = YTM 专辑/发行 browse 链接
+    # （从 music.youtube.com 地址栏直接复制，与 OLAK5uy 指向同一专辑实体）
+    [[ "$url" =~ OLAK5uy_ ]] || [[ "$url" =~ MPREb_ ]] && { echo "album"; return; }
     [[ "$url" =~ RDCLAK5uy_ ]] && { echo "ytm_radio"; return; }
     if [[ "$url" =~ playlist\?list=PL ]] || [[ "$url" =~ playlist\?list=LM ]]; then echo "playlist"; return; fi
     [[ "$url" =~ youtube\.com/playlist ]] && { echo "playlist"; return; }
@@ -780,7 +782,7 @@ ui_pick_tracks() {
 # ══════════ mf_lib.sh 内联结束 ══════════
 
 echo "=================================================="
-echo " 🎵 musicfeed V3.5.1"
+echo " 🎵 musicfeed V3.5.2"
 echo "=================================================="
 say "支持: 专辑 / 播放列表 / YTM电台 / 单曲" "Supports: albums / playlists / YTM radios / singles"
 echo "=================================================="
@@ -1471,6 +1473,10 @@ download_cover() {
     local url=""
     url=$(get_cover_url "$json_file")
     if [ -n "$url" ]; then
+        if ! command -v curl &>/dev/null; then
+            echo "  curl not found, cannot download cover" >&2
+            return 1
+        fi
         local tmp="/tmp/cover_$$.jpg"
         curl -sL "$url" -o "$tmp" 2>/dev/null
         if [ -f "$tmp" ] && [ "$(file_size "$tmp" 2>/dev/null)" -gt 10240 ]; then
@@ -1719,7 +1725,7 @@ for album_entry in "${ALBUMS[@]}"; do
                 fi
                 rm -f "$JSON_FILE"
             fi
-            mv_write_id3 "$NEW_PATH" "$MV_TITLE" "$MV_ARTIST" "$MV_ALBUM" "" "$CF" >> "$LOG_FILE" 2>&1
+            mv_write_id3 "$NEW_PATH" "$MV_TITLE" "$MV_ARTIST" "$MV_ALBUM" "" "$CF"
             [ -n "$CF" ] && rm -f "$CF"
             echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
         done
@@ -1848,7 +1854,7 @@ for album_entry in "${ALBUMS[@]}"; do
                     fi
                 fi
                 FINAL_ALBUM="${ALBUM:-$TITLE}"
-                mv_write_id3 "$NEW_PATH" "$TITLE" "$ARTIST" "$FINAL_ALBUM" "" "$CF" >> "$LOG_FILE" 2>&1
+                mv_write_id3 "$NEW_PATH" "$TITLE" "$ARTIST" "$FINAL_ALBUM" "" "$CF"
                 [ -n "$CF" ] && rm -f "$CF"
                 echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
             fi

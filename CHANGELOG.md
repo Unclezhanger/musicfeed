@@ -1,3 +1,12 @@
+## v3.5.2 (2026-09-06)
+
+### YTM album browse links
+- `get_link_type` now recognizes `MPREb_…` URLs (album/release pages copied
+  from the music.youtube.com address bar) as album type — previously only
+  share links (`OLAK5uy_…`) were accepted and address-bar links failed with
+  "unknown link type"
+- Both id families point to the same album entity and are handled identically
+
 # Changelog — musicfeed kernel
 
 ## v3.5.0 (2026-08-30)
