@@ -1,14 +1,19 @@
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md)
 [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README_zh.md)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey.svg)]()
 [![Bash](https://img.shields.io/badge/bash-4%2B-green.svg)]()
-[![Release](https://img.shields.io/badge/release-v3.5.2-success.svg)]()
+[![Python](https://img.shields.io/badge/python-free-success.svg)]()
+[![Release](https://img.shields.io/badge/release-v4.0-success.svg)]()
 
 # 🎵 musicfeed
 
 **Intelligent batch downloader for the YouTube Music ecosystem.**
 
 Most tools treat every YouTube link the same. musicfeed doesn't.
+
+**v4.0 is a ground-up rework of the download kernel: it now runs with zero
+Python — tagging, covers, JSON parsing and title extraction are all handled
+by `ffmpeg`, `jq` and plain Bash.**
 
 ## 🖼️ The result
 
@@ -59,51 +64,88 @@ Radio and video titles arrive polluted (`【MV】【動態歌詞】(Official Aud
 - Uploader ↔ title cross-matching instead of blind `" - "` splitting
 - No-metadata tracks are renamed and tagged with the extracted values
 
-### 4. Correct ID3 tags for self-hosted libraries
+In v4.0 the whole engine was ported from Python to pure Bash + `grep`/`sed`,
+verified byte-for-byte against the previous implementation across every
+branch of the algorithm.
+
+### 4. Correct tags for self-hosted libraries
 
 `album_artist` is written correctly on every track. This matters for Navidrome and Jellyfin — without it, multi-artist albums split into multiple entries in your library.
 
-### 5. A setup wizard and a TUI that always work
+Tagging runs entirely through `ffmpeg` now: existing tags are merged, not
+wiped; the audio stream is stream-copied (`-c:a copy`, bit-identical); covers
+are embedded as real `attached_pic` streams (M4A) or standard
+`METADATA_BLOCK_PICTURE` comments (Opus) — verified readable by Navidrome,
+Jellyfin and Mutagen alike.
 
-`mf_setup.sh` detects every dependency and can **one-click install** everything (system packages via sudo, yt-dlp/mutagen isolated in a project venv — no `sudo pip`). The interactive UI degrades gracefully: `whiptail` → arrow-key menu → numeric input, so it works over any SSH session.
+### 5. A setup wizard that also manages yt-dlp for you
 
-## 🆕 What's New in v3.5.2
+`mf_setup.sh` checks every dependency, shows the result in a summary dialog
+(✅ all green, or ❌ exactly what's missing), and can **one-click install**
+everything — system packages via sudo, yt-dlp as the official **standalone
+binary** (no pip, no venv).
 
-- **YTM album browse links (`MPREb_…`) now recognized** — pasting an album URL
-  copied from the music.youtube.com address bar no longer fails with
-  "unknown link type"; share links (`OLAK5uy_…`) and browse links are handled
-  identically
+YouTube's anti-bot updates regularly break older yt-dlp builds, so the wizard
+also asks on every run:
+
+- **Keep current version**
+- **Update to latest stable**
+- **Switch to nightly** (tracks anti-bot fixes faster)
+
+Re-running the wizard is always enough to refresh a broken yt-dlp — no
+manual binary deletion, no pip.
+
+The interactive UI degrades gracefully: `whiptail` → arrow-key menu →
+numeric input, and every config step supports **Esc to go back**.
+
+### 6. Safe to run concurrently
+
+Each library folder is serialized with `flock` and worker temp files are
+PID-scoped — launching several downloads into the same folder no longer
+races on temp files, info.json or covers. (Timeout tunable via
+`MF_FLOCK_TIMEOUT`.)
+
+## 🆕 What's New in v4.0
+
+- **Zero-Python kernel** — tagging/covers via `ffmpeg` (existing tags merged,
+  audio stream-copied bit-identical, hand-built FLAC Picture blocks for Opus),
+  JSON via `jq`, title extraction in pure Bash
+- **yt-dlp as a standalone binary** with stable/nightly channel management in
+  the setup wizard
+- **Concurrency hardening**: per-folder `flock` + PID-scoped temp files
+- **Fixed**: multi-link runs double-counted tracks (singles inherited the
+  previous link's selection count); playlist parsing lost empty fields;
+  empty album entries produced a phantom track; M4A covers were silently
+  re-encoded (now embedded byte-identical)
+- **Setup UX**: dependency summary dialogs, full back navigation, macOS
+  advisory
 
 <details>
-<summary>v3.5.0 highlights</summary>
+<summary>v3.5.x highlights</summary>
 
-- **New title-extraction engine** for radios & MV playlists: book-title/bracket rules replace naive `" - "` splitting; uploader cross-matching; verified on 118 real radio tracks
-- **Renaming for no-metadata radio tracks**: extracted `artist - title` is applied to both tags and filenames (duplicate-safe rename)
-- **Meta safety net in MV mode**: when full info.json metadata exists, it overrides manually prefilled values
-- **Track selection rebuilt**: whiptail native checklist with a "select all" item, or type ranges like `1,2,3-5,9`; `0`/`b` steps back
-- **Per-step state machine**: every interactive step can go back one step
-- **Subfolder semantics**: create / rename / none — consistent between CLI and Web UI
-- **Isolated venv**: yt-dlp + mutagen live in the project's `.venv` — delete the folder to fully uninstall
-
-</details>
-
-<details>
-<summary>v3.2.0 highlights</summary>
-
-- Multi-artist tag support (`feat.` / `ft.` / `&` splitting, VA handling)
-- Standard `ALBUMARTIST` field
-- Removed download throttling (no more HTTP 403 from anti-bot detection)
+- Title-extraction engine for radios & MV playlists: book-title/bracket rules, uploader cross-matching; verified on 118 real radio tracks
+- Renaming for no-metadata radio tracks (duplicate-safe), metadata safety net in MV mode
+- Track selection: whiptail checklist with "select all" + range input (`1,2,3-5,9`); per-step state machine
+- YTM album browse links (`MPREb_…`) recognized
+- Multi-artist tag support, standard `ALBUMARTIST` field, no download throttling
 
 </details>
 
 ## 📋 Requirements
 
 * **bash 4.0+**
-* `ffmpeg`
-* `python3` (with `venv`)
-* `node` ≥ 20 (optional, for concurrency)
+* `ffmpeg` (tagging, covers, audio conversion)
+* `jq` (metadata parsing)
+* `curl` or `wget` (fetches the yt-dlp binary)
+* `node` ≥ 20 (recommended — used by yt-dlp as a JS runtime for some links)
 
-> **⚠️ macOS Users Note:** macOS ships with Bash 3.2; install Bash 4+ via Homebrew (`brew install bash`). yt-dlp and mutagen are installed into the project venv automatically by `mf_setup.sh`.
+> No Python at all — the venv/mutagen stack from v3.x is gone.
+
+> **⚠️ macOS Users Note:** v4.0's tagging pipeline uses GNU `sed`/`base64`
+> flags that BSD tools don't support — install `brew install gnu-sed
+> coreutils` and put their gnubin/gsed paths first in `PATH` (the setup
+> wizard prints this warning automatically). `whiptail` is optional; the UI
+> falls back to arrow-key menus.
 
 ## 📦 Quick Start
 
@@ -111,27 +153,17 @@ Radio and video titles arrive polluted (`【MV】【動態歌詞】(Official Aud
 git clone https://github.com/Unclezhanger/musicfeed.git
 cd musicfeed
 
-# One-time setup (deps check + one-click install, music path, audio format)
+# One-time setup: dependency check + one-click install, yt-dlp channel,
+# music library path, audio format (opus / m4a)
 bash mf_setup.sh
 
 # Start downloading
 bash musicfeed.sh
 ```
 
-### Optional: switch to the yt-dlp nightly build
-
-YouTube updates its anti-scrape mechanisms frequently; the nightly build of
-yt-dlp tracks those changes and can fix breakage days before the stable
-release. Run this from the project directory (works for the initial switch
-and for refreshing an existing nightly):
-
-```bash
-.venv/bin/pip install --no-cache-dir --upgrade \
-  "yt-dlp @ https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.tar.gz"
-```
-
-Or re-run `bash mf_setup.sh` — it detects an existing nightly in the venv
-and refreshes it to the latest automatically.
+If downloads ever start failing en masse (YouTube anti-bot update), just run
+`bash mf_setup.sh` again and pick **Update to latest stable** or **Switch to
+nightly**.
 
 ## 🖥️ Prefer a Web UI?
 
@@ -142,14 +174,15 @@ This repo is the **CLI edition**. The companion project [**mfui**](https://githu
 - PWA support (install on your phone, share links straight into the download queue)
 - **Docker** distribution (single container, recommended for NAS/home-server users)
 
-Both share the same download kernel — your `mf_config.sh` works in either.
+Both share the same download kernel design — your `mf_config.sh` works in
+either. (mfui is being adapted to the v4.0 kernel.)
 
 ## 📁 Project Structure
 
 | File | Purpose |
 |------|---------|
 | `musicfeed.sh` | Main script (self-contained) |
-| `mf_setup.sh` | Setup wizard |
+| `mf_setup.sh` | Setup wizard (deps, yt-dlp channel, config) |
 | `mf_config.sh` | Generated config (do not edit manually) |
 
 ## ⚠️ Disclaimer
