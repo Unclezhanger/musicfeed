@@ -42,7 +42,7 @@ MF_LANG="en"
 is_en() { [ "$MF_LANG" = "en" ]; }
 
 echo "=================================================="
-echo " 🎵 musicfeed v4.0 Setup / 配置引导"
+echo " 🎵 musicfeed v4.1 Setup / 配置引导"
 echo "=================================================="
 echo ""
 
@@ -175,18 +175,27 @@ m_parse_sel() {
     local input="$1" max="$2" result="" part
     IFS=',' read -ra parts <<< "$input"
     for part in "${parts[@]}"; do
-        part=$(echo "$part" | xargs)
+        part="${part#"${part%%[![:space:]]*}"}"   # 去前导空白（不要用 xargs：它会解释引号/反斜杠）
+        part="${part%"${part##*[![:space:]]}"}"   # 去尾随空白
         [ -z "$part" ] && continue
         if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
             local s=${BASH_REMATCH[1]} e=${BASH_REMATCH[2]}
             if [ "$s" -ge 1 ] && [ "$e" -le "$max" ] && [ "$s" -le "$e" ]; then
                 for ((i=s; i<=e; i++)); do result="${result}${result:+,}$i"; done
+            else
+                echo "INVALID:$part"; return 1      # 越界 → 整体失败
             fi
-        elif [[ "$part" =~ ^[0-9]+$ ]] && [ "$part" -ge 1 ] && [ "$part" -le "$max" ]; then
-            result="${result}${result:+,}$part"
+        elif [[ "$part" =~ ^[0-9]+$ ]]; then
+            if [ "$part" -ge 1 ] && [ "$part" -le "$max" ]; then
+                result="${result}${result:+,}$part"
+            else
+                echo "INVALID:$part"; return 1      # 越界 → 整体失败
+            fi
+        else
+            echo "INVALID:$part"; return 1          # 非数字 → 整体失败
         fi
     done
-    echo "$result"
+    echo "$result"    # 空输入仍返回空：setup 里"回车 = 不选"是合法语义
 }
 
 # m_ui_checklist "标题"  条目经 stdin 传入 → 输出选中编号 "1,3,5"（可空）
@@ -226,7 +235,13 @@ m_ui_checklist() {
     while :; do
         printf '%s' "$(is_en && echo 'Numbers to select (e.g. 1,3,5-7 · Enter=none): ' || echo '要选择的编号（如 1,3,5-7 · 回车=不选）: ')" >&2
         local TI; m_ui_readline TI
-        echo "$(m_parse_sel "$TI" "$n")"; return 0
+        [ -z "$TI" ] && { echo ""; return 0; }        # 回车 = 不选
+        local _P; _P=$(m_parse_sel "$TI" "$n")
+        if [[ "$_P" == INVALID:* ]]; then
+            printf '%s\n' "$(is_en && echo '  Invalid selection, retry (Enter=none)' || echo '  选择无效，重试（回车=不选）')" >&2
+            continue
+        fi
+        echo "$_P"; return 0
     done
 }
 
@@ -235,9 +250,12 @@ m_ui_browse_dir() {
     local cur="$(cd "$1" 2>/dev/null && pwd)" || cur="$HOME"
     while :; do
         local subdirs=() d
-        while IFS= read -r d; do
+        local _e
+        while IFS= read -r -d '' _e; do
+            d="${_e##*/}"
+        [[ "$d" == *$'\n'* ]] && continue   # 含换行的目录名无法安全进入菜单/勾选列表，跳过
             [ -n "$d" ] && subdirs+=("$d")
-        done < <(ls -F "$cur" 2>/dev/null | grep '/$' | sed 's/\///' | sort | head -100)
+        done < <(find -L "$cur" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null | sort -z | head -z -n 100)
         local items=("✅ $(is_en && echo "Use this directory (current: ${cur/#$HOME/\~})" || echo "使用此目录（当前：${cur/#$HOME/\~}）")")
         items+=("⬆️  $(is_en && echo 'Up one level (..)' || echo '上一级 (..)')")
         local i
@@ -270,7 +288,7 @@ LSEL=$(m_ui_menu "🌐 Language / 语言" 1 "English" "中文")
 [ "$LSEL" = "2" ] && MF_LANG="zh"
 
 echo "=================================================="
-echo "$(is_en && echo ' 🎵 musicfeed v4.0 Setup' || echo ' 🎵 musicfeed (音流) v4.0 配置引导')"
+echo "$(is_en && echo ' 🎵 musicfeed v4.1 Setup' || echo ' 🎵 musicfeed (音流) v4.1 配置引导')"
 echo "=================================================="
 echo ""
 
@@ -530,10 +548,13 @@ step_artist() {
     echo ""
     folders=()
     folders+=("musicfeed")
-    while IFS= read -r line; do
+    local _e
+    while IFS= read -r -d '' _e; do
+        line="${_e##*/}"
+        [[ "$line" == *$'\n'* ]] && continue   # 含换行的目录名无法安全进入菜单/勾选列表，跳过
         [[ "$line" == "musicfeed" ]] && continue
         folders+=("$line")
-    done < <(ls -F "$BASE_DIR" 2>/dev/null | grep '/$' | sed 's/\///')
+    done < <(find -L "$BASE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null | sort -z)
 
     _items=()
     for i in "${!folders[@]}"; do
@@ -583,9 +604,12 @@ step_hidden() {
 
     # 候选 = 音乐库一级子目录（只列真实存在的目录，完全由用户勾选）
     hide_cands=()
-    while IFS= read -r line; do
+    local _e
+    while IFS= read -r -d '' _e; do
+        line="${_e##*/}"
+        [[ "$line" == *$'\n'* ]] && continue   # 含换行的目录名无法安全进入菜单/勾选列表，跳过
         hide_cands+=("$line")
-    done < <(ls -F "$BASE_DIR" 2>/dev/null | grep '/$' | sed 's/\///')
+    done < <(find -L "$BASE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null | sort -z)
 
     HIDDEN_DIRS=()
     if [ ${#hide_cands[@]} -gt 0 ]; then

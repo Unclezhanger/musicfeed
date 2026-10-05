@@ -1,3 +1,39 @@
+## v4.1 (2026-10-05)
+
+### Selection-parsing hardening
+- Track-selection input is no longer trimmed with `xargs`, which silently
+  interpreted quotes and backslashes (`1\2` selected track 12, `1"` or a
+  whitespace-only input downloaded ALL tracks) — whitespace is trimmed with
+  pure parameter expansion now
+- An empty parse result is `INVALID:empty` instead of "select all" (callers
+  already map Enter/a to an explicit ALL, so an empty result can only mean
+  a broken parse)
+- `mf_setup.sh`: invalid or out-of-range fragments fail the whole selection
+  instead of being silently dropped, and the numeric checklist retries on
+  invalid input (Enter = select none, unchanged)
+
+### Directory listing
+- All 4 `ls -F | grep '/$'` listing sites replaced with
+  `find -L … -print0 | sort -z`: symlinked directories now show up (GNU
+  `ls -F` marks them `@`, so the old pipeline silently skipped them), and
+  directory names containing newlines can no longer tear the list into
+  phantom entries; dot-directories stay excluded, ordering preserved
+- macOS: the setup directory browser now also needs GNU `head -z` /
+  `sort -z` (`brew install coreutils findutils`) — or run the mfui container
+
+### Cover & metadata pairing
+- Fixed: very long "artist - title" names silently lost the embedded cover.
+  yt-dlp's `--trim-filenames` misreads dots inside the base name
+  (`rsplit('.', 2)` treats `feat.` or artist names like `asiatic.wav` as
+  extension separators), so the `.info.json` and the audio file could end
+  up with different names and the worker skipped tagging/cover for that
+  track without any warning. Filename length is now capped at the yt-dlp
+  template level (`%(artist,uploader).50s - %(title).25s`), which keeps both
+  names identical
+- The `artist` tag now comes from the JSON metadata (`.artist`) when
+  available instead of being derived from the filename; also fixed a
+  stale per-file variable in the enhanced-mode post-processing loop
+
 ## v4.0 (2026-09-27)
 
 ### Zero-Python kernel

@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey.svg)]()
 [![Bash](https://img.shields.io/badge/bash-4%2B-green.svg)]()
 [![Python](https://img.shields.io/badge/python-free-success.svg)]()
-[![Release](https://img.shields.io/badge/release-v4.0-success.svg)]()
+[![Release](https://img.shields.io/badge/release-v4.1-success.svg)]()
 
 # 🎵 musicfeed（音流）
 
@@ -95,6 +95,13 @@ yt-dlp 被封了？重跑一次向导即可自救——不用手动删二进制�
 每个音乐库目录用 `flock` 串行化，worker 临时文件按 PID 隔离——往同一目录
 同时跑多个下载不再出现临时文件、info.json、封面互抢。（超时可经
 `MF_FLOCK_TIMEOUT` 调整。）
+
+## 🆕 v4.1 更新内容
+
+- **选号输入加固**——引号、反斜杠、纯空白输入不再会误触"下载全部"或静默选错曲目；setup 数字菜单遇非法输入会提示重试，而不是悄悄丢弃
+- **歌手文件夹选择器现在能看到软链接目录**（GNU `ls -F` 给软链接只标 `@`，旧版会整体漏掉）；含换行的目录名不会再把列表撕出幽灵条目
+- **修复**：超长"歌手 - 歌名"文件名导致音频与其元数据 JSON 名字失配、封面被静默跳过的问题；artist 标签改为优先取 JSON 元数据而非文件名
+- macOS 现在还需要 GNU `head -z`/`sort -z`（`brew install coreutils findutils`），或直接使用 mfui 容器
 
 ## 🆕 v4.0 更新内容
 

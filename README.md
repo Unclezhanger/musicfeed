@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Docker-lightgrey.svg)]()
 [![Bash](https://img.shields.io/badge/bash-4%2B-green.svg)]()
 [![Python](https://img.shields.io/badge/python-free-success.svg)]()
-[![Release](https://img.shields.io/badge/release-v4.0-success.svg)]()
+[![Release](https://img.shields.io/badge/release-v4.1-success.svg)]()
 
 # 🎵 musicfeed
 
@@ -104,6 +104,22 @@ Each library folder is serialized with `flock` and worker temp files are
 PID-scoped — launching several downloads into the same folder no longer
 races on temp files, info.json or covers. (Timeout tunable via
 `MF_FLOCK_TIMEOUT`.)
+
+## 🆕 What's New in v4.1
+
+- **Hardened track-selection input** — quotes, backslashes or
+  whitespace-only input can no longer trigger "download all" or silently
+  pick the wrong track; the setup wizard's numeric menus retry on invalid
+  input instead of dropping it
+- **Symlinked folders now appear** in the artist-folder picker (GNU `ls -F`
+  marks them `@`, so the old pipeline skipped them), and directory names
+  containing newlines can no longer corrupt the list
+- **Fixed**: very long "artist - title" names silently lost their embedded
+  cover (yt-dlp filename trimming desynced the audio file from its metadata
+  JSON); the artist tag is now taken from the JSON metadata instead of the
+  filename
+- macOS now additionally needs GNU `head -z`/`sort -z` — `brew install
+  coreutils findutils`, or use the mfui container
 
 ## 🆕 What's New in v4.0
 

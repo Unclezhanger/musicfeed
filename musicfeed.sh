@@ -1,12 +1,17 @@
 #!/bin/bash
 # ─────────────────────────────────────────────
-# musicfeed V4.0
+# musicfeed V4.1
 # v4.0: 打标签/内嵌封面从 python3+mutagen 迁移到 ffmpeg；
 #       json 解析/电台歌名提取从 python3 迁移到 jq + 纯 bash（彻底不再依赖 python3）
 # v4.0.8: 并发加固——worker 临时文件 PID 化（temp_$$_mv_*，彻底消除同文件夹多任务
 #         互抢 temp/info.json）；每个专辑目录 flock 互斥（根治 yt-dlp 同名 .part
 #         互写损坏，MF_FLOCK_TIMEOUT 可调）；交互段每链接重置 SELECTION/SELECTED_COUNT
 #         （修复多链接时单曲继承上一链接计数、TOTAL_SELECTED 双重累加）
+# v4.1: 选号解析加固——xargs → 参数展开去空白，空结果不再当作"全选"（INVALID:empty）；
+#       m_parse_sel 非法/越界片段整体失败 + 数字层重试；目录列举改 find -L -print0
+#       （软链接目录可见、防换行名撕裂）；封面配对修复——文件名截断改 yt-dlp 模板层
+#       （长"歌手 - 歌名"下 audio 与 info.json 基名失配致封面静默丢失），
+#       embed_cover artist 标签优先取 JSON 元数据（原从文件名拆分）
 # ─────────────────────────────────────────────
 
 # 中文等多字节字符的 grep/sed 正则匹配、wc -m 字符计数都依赖 UTF-8 locale，
@@ -159,7 +164,8 @@ parse_track_selection() {
     input=$(fullwidth_to_halfwidth "$input")
     IFS=',' read -ra parts <<< "$input"
     for part in "${parts[@]}"; do
-        part=$(echo "$part" | xargs)
+        part="${part#"${part%%[![:space:]]*}"}"   # 去前导空白（不要用 xargs：它会解释引号/反斜杠）
+        part="${part%"${part##*[![:space:]]}"}"   # 去尾随空白
         [ -z "$part" ] && continue
         if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
             start=${BASH_REMATCH[1]}; end=${BASH_REMATCH[2]}
@@ -172,7 +178,10 @@ parse_track_selection() {
             [ "$part" -ge 1 ] && [ "$part" -le "$max" ] && { [ -n "$result" ] && result="$result,$part" || result="$part"; } || { echo "INVALID:$part"; return 1; }
         else echo "INVALID:$part"; return 1; fi
     done
-    [ -z "$result" ] && echo "ALL" || echo "$result"
+    # 调用方（ui_checklist / ui_pick_tracks）已把"回车/a = 全选"转成显式 ALL；
+    # 走到这里 result 为空只可能是解析失败（如孤立引号），不能当成全选。
+    [ -z "$result" ] && { echo "INVALID:empty"; return 1; }
+    echo "$result"
 }
 
 # ─────────────────────────────────────────────
@@ -873,7 +882,7 @@ ui_pick_tracks() {
 # ══════════ mf_lib.sh 内联结束 ══════════
 
 echo "=================================================="
-echo " 🎵 musicfeed V4.0"
+echo " 🎵 musicfeed V4.1"
 echo "=================================================="
 say "支持: 专辑 / 播放列表 / YTM电台 / 单曲" "Supports: albums / playlists / YTM radios / singles"
 echo "=================================================="
@@ -922,7 +931,12 @@ select_artist_folder() {
     local folders=()
     folders+=("$MF_DEFAULT_ARTIST_DIR")
 
-    while IFS= read -r line; do
+    # v4.0.x: 用 find -L -print0 取代 ls -F | grep '/$'（后者在 Linux 上漏掉软链接目录，
+    # 且被含换行的目录名撕裂）。! -name '.*' 保持与 ls 一致（不列点开头目录）。
+    local _entry
+    while IFS= read -r -d '' _entry; do
+        line="${_entry##*/}"
+        [[ "$line" == *$'\n'* ]] && continue   # 含换行的目录名无法安全进入菜单/勾选列表，跳过
         [[ "$line" == "$MF_DEFAULT_ARTIST_DIR" ]] && continue
         local hidden=0
         for h in "${MF_HIDDEN_DIRS[@]}"; do
@@ -930,7 +944,7 @@ select_artist_folder() {
         done
         [ $hidden -eq 1 ] && continue
         folders+=("$line")
-    done < <(ls -F "$MF_BASE_DIR" 2>/dev/null | grep '/$' | sed 's/\///')
+    done < <(find -L "$MF_BASE_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null | sort -z)
 
     local items=() i
     for i in "${!folders[@]}"; do
@@ -1918,7 +1932,7 @@ for album_entry in "${ALBUMS[@]}"; do
             --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json \
             "${FORMAT_ARGS[@]}" \
             --playlist-items "$SELECTION" \
-            -o "%(artist,uploader)s - %(title)s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
+            -o "%(artist,uploader).50s - %(title).25s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
 
     else
         if [ -n "$NORMAL_SELECTION" ]; then
@@ -1928,7 +1942,7 @@ for album_entry in "${ALBUMS[@]}"; do
                 --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json \
                 "${FORMAT_ARGS[@]}" \
                 --playlist-items "$NORMAL_SELECTION" \
-                -o "%(artist,uploader)s - %(title)s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
+                -o "%(artist,uploader).50s - %(title).25s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
         fi
 
         if [ -n "$MV_VIDS" ] && [ "$MV_STRATEGY" = "1" ]; then
@@ -1951,7 +1965,7 @@ for album_entry in "${ALBUMS[@]}"; do
                 --embed-metadata --no-embed-thumbnail --windows-filenames --trim-filenames 78 --yes-playlist \
                 --parse-metadata "%(playlist_index)s:%(track_number)s" --write-info-json \
                 "${FORMAT_ARGS[@]}" $DOWNLOAD_ARGS \
-                -o "%(artist,uploader)s - %(title)s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
+                -o "%(artist,uploader).50s - %(title).25s.%(ext)s" -P "$FINAL_PATH" "$url" >> "$LOG_FILE" 2>&1
         fi
     fi
 
@@ -2038,7 +2052,7 @@ for album_entry in "${ALBUMS[@]}"; do
                 rm -f "$JSON_FILE"
             fi
             [ -n "$REAL_ALBUM" ] && FINAL_ALBUM="$REAL_ALBUM" || FINAL_ALBUM="$TITLE"
-            embed_cover "$f" "" "$ALBUM_NAME" "$([ -n "$CF" ] && echo true || echo false)" "true" "$FINAL_ALBUM" "$CF" "$FORCE_TITLE" "$FORCE_ARTIST" >> "$LOG_FILE" 2>&1
+            embed_cover "$f" "" "$ALBUM_NAME" "$([ -n "$CF" ] && echo true || echo false)" "true" "$FINAL_ALBUM" "$CF" "$FORCE_TITLE" "${FORCE_ARTIST:-$SA}" >> "$LOG_FILE" 2>&1
             [ -n "$CF" ] && rm -f "$CF"
             # v4.3: 无元数据曲目按提取结果重命名（歌手 - 歌名），与 MV 分支同语义
             if [ "$HS" != "true" ] && [ -n "$FORCE_TITLE" ] && [ -n "$FORCE_ARTIST" ]; then
@@ -2140,7 +2154,7 @@ for album_entry in "${ALBUMS[@]}"; do
             log "  ⚠️ Skipping invalid/corrupt file: $(basename "$f")"
             continue
         fi
-        ORIG_ALBUM=""; CF=""; HC="false"; FORCE_TITLE=""; FORCE_ARTIST=""
+        ORIG_ALBUM=""; CF=""; HC="false"; FORCE_TITLE=""; FORCE_ARTIST=""; SA=""
         if [ "$ENHANCED_MODE" = "true" ]; then
             JSON_FILE="${f%.$AUDIO_EXT}.info.json"
             if [ -f "$JSON_FILE" ]; then
@@ -2188,7 +2202,7 @@ for album_entry in "${ALBUMS[@]}"; do
                 log "  🖼️ Using unified cover"
             fi
         fi
-        embed_cover "$f" "$ALBUM_ARTIST" "$ALBUM_NAME" "$HC" "$ENHANCED_MODE" "$ORIG_ALBUM" "$CF" "$FORCE_TITLE" "$FORCE_ARTIST" >> "$LOG_FILE" 2>&1
+        embed_cover "$f" "$ALBUM_ARTIST" "$ALBUM_NAME" "$HC" "$ENHANCED_MODE" "$ORIG_ALBUM" "$CF" "$FORCE_TITLE" "${FORCE_ARTIST:-$SA}" >> "$LOG_FILE" 2>&1
         [ -n "$CF" ] && [ "$CF" != "$UNIFIED_COVER" ] && rm -f "$CF"
         # v4.3: 无元数据曲目按提取结果重命名（歌手 - 歌名），与 MV 分支同语义
         if [ "$HS" != "true" ] && [ -n "$FORCE_TITLE" ] && [ -n "$FORCE_ARTIST" ]; then
