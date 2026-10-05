@@ -44,6 +44,14 @@
   prompts now use readline (`read -e`), which edits by character and
   display width instead of the kernel tty's byte-wise erase — this also
   brings arrow-key editing and (in the manual path prompt) Tab completion
+- Radio no-metadata extraction: label-official-MV titles following the
+  `artist [ song ] Official MV` convention no longer lose the song to a
+  trailing attribution bracket (e.g. `- 公視《劇名》影集插曲`) — a
+  left-to-right scan of `[ … ]` groups now prefers the first one whose
+  artist prefix is short, verified against 188 real playlist/radio titles
+  with zero regressions (e.g. 蘇慧倫 Tarcy Su [ 貴得可以 Not Expensive At
+  All ]… now extracts 貴得可以 Not Expensive At All / 蘇慧倫 Tarcy Su
+  instead of 欠妳的那場婚禮 / uploader)
 
 ## v4.0 (2026-09-27)
 

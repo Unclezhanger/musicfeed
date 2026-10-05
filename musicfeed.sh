@@ -294,6 +294,31 @@ extract_nm_info() {
 
     t=$(sed 's/–/-/g; s/—/-/g' <<< "$title_raw")
 
+    # 0) 方括号全量扫描（v4.1）：按出现顺序取第一个「内容未污染、且前缀非空 ≤30 字」
+    #    的 [ 歌名 ] 组为歌名，前缀为歌手。厂牌官方 MV 的惯例是「歌手 [ 歌名 ] Official MV」，
+    #    而片尾署名括号（影集《劇名》插曲之类）前面拖着长前缀，会被 30 字上限自然排除。
+    #    只扫 [ ]：圆括号/书名号/【】更多承担署名、feat、纯享标签等角色，仍走原有优先级。
+    #    扫描不中（如括号组在标题开头、无歌手前缀）则落入原有书名号优先逻辑。
+    local bm inner2 pre2 flat2
+    while IFS= read -r bm; do
+        [ -z "$bm" ] && continue
+        inner2=$(sed -E 's/^.(.*).$/\1/' <<< "$bm")
+        song=$(mf_br_proc "$inner2")
+        song=$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' <<< "$song")
+        flat2=$(sed -E "s/$MF_BR_RE/ /g" <<< "$song")
+        if [ -z "$song" ] || mf_poll_match "$flat2"; then continue; fi
+        pre2="${t%%"$bm"*}"
+        [ -z "$pre2" ] && continue
+        pre2=$(sed -E 's/^(\[[^]]*\][[:space:]]*)+//' <<< "$pre2")
+        pre2=$(sed -E 's/[[:space:]:：*|｜-]+$//' <<< "$pre2")
+        pre2=$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' <<< "$pre2")
+        plen=$(printf '%s' "$pre2" | wc -m)
+        if [ -n "$pre2" ] && [ "$plen" -le 30 ]; then
+            echo "$(mf_esc "$song")|$(mf_esc "$pre2")"
+            return 0
+        fi
+    done < <(grep -oE '\[[^][]*\]' <<< "$t")
+
     # 1) 书名号优先（内容被污染词清空时视为无书名号，继续走后面分支）
     if mf_bracket_priority_match "$t"; then
         song=$(mf_br_proc "$BR1_INNER")
@@ -1776,6 +1801,31 @@ extract_nm_info() {
     up=$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' <<< "$up")
 
     t=$(sed 's/–/-/g; s/—/-/g' <<< "$title_raw")
+
+    # 0) 方括号全量扫描（v4.1）：按出现顺序取第一个「内容未污染、且前缀非空 ≤30 字」
+    #    的 [ 歌名 ] 组为歌名，前缀为歌手。厂牌官方 MV 的惯例是「歌手 [ 歌名 ] Official MV」，
+    #    而片尾署名括号（影集《劇名》插曲之类）前面拖着长前缀，会被 30 字上限自然排除。
+    #    只扫 [ ]：圆括号/书名号/【】更多承担署名、feat、纯享标签等角色，仍走原有优先级。
+    #    扫描不中（如括号组在标题开头、无歌手前缀）则落入原有书名号优先逻辑。
+    local bm inner2 pre2 flat2
+    while IFS= read -r bm; do
+        [ -z "$bm" ] && continue
+        inner2=$(sed -E 's/^.(.*).$/\1/' <<< "$bm")
+        song=$(mf_br_proc "$inner2")
+        song=$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' <<< "$song")
+        flat2=$(sed -E "s/$MF_BR_RE/ /g" <<< "$song")
+        if [ -z "$song" ] || mf_poll_match "$flat2"; then continue; fi
+        pre2="${t%%"$bm"*}"
+        [ -z "$pre2" ] && continue
+        pre2=$(sed -E 's/^(\[[^]]*\][[:space:]]*)+//' <<< "$pre2")
+        pre2=$(sed -E 's/[[:space:]:：*|｜-]+$//' <<< "$pre2")
+        pre2=$(sed 's/^[[:space:]]*//;s/[[:space:]]*$//' <<< "$pre2")
+        plen=$(printf '%s' "$pre2" | wc -m)
+        if [ -n "$pre2" ] && [ "$plen" -le 30 ]; then
+            echo "$(mf_esc "$song")|$(mf_esc "$pre2")"
+            return 0
+        fi
+    done < <(grep -oE '\[[^][]*\]' <<< "$t")
 
     # 1) 书名号优先（内容被污染词清空时视为无书名号，继续走后面分支）
     if mf_bracket_priority_match "$t"; then
