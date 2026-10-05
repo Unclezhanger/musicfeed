@@ -1115,9 +1115,9 @@ for idx in "${!VALID_URLS[@]}"; do
 
     if [ "$TRACK_COUNT" -gt 100 ]; then
         if is_en; then
-            echo "⚠️ Note: Playlist has $TRACK_COUNT tracks. Due to yt-dlp limits, only the first 100 can be fetched."
+            echo "⚠️ Note: Playlist has $TRACK_COUNT tracks. If it cannot be fetched/displayed in full, re-run mf_setup.sh and switch yt-dlp to the NIGHTLY version."
         else
-            echo "⚠️ 提示: 播放列表共 $TRACK_COUNT 首。受 yt-dlp 限制，目前仅能抓取并下载前 100 首。"
+            echo "⚠️ 提示: 播放列表共 $TRACK_COUNT 首。如遇不能完整显示/抓取，重新运行 mf_setup.sh 切换 yt-dlp 到 nightly 版即可。"
         fi
     fi
 
