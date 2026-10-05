@@ -1108,8 +1108,10 @@ for idx in "${!VALID_URLS[@]}"; do
     [ -z "$DISPLAY_NAME" ] && { say "⚠️ 无法获取信息，跳过" "⚠️ Could not fetch info, skipping"; continue; }
 
     # v4.0.8: 单曲固定计 1 首——tracks 步骤只对 TRACK_COUNT>1 的链接运行，
-    # 单曲的 SELECTED_COUNT 若不在此补记将恒为 0（统计失真、上限判断漏算）
-    [ "$IS_SINGLE" == true ] && SELECTED_COUNT=1
+    # 不进选曲步骤的链接 SELECTED_COUNT 若不在此补记将恒为 0（统计失真、上限判断漏算）。
+    # v4.1: 条件从 IS_SINGLE 放宽到 TRACK_COUNT=1——单曲目专辑/播放列表/电台
+    # 同样不进选曲步骤，此前同样少计 1 首（单曲链接的 TRACK_COUNT 恒为 1，行为不变）
+    [ "$TRACK_COUNT" -eq 1 ] && SELECTED_COUNT=1
 
     if [ "$TRACK_COUNT" -gt 100 ]; then
         if is_en; then

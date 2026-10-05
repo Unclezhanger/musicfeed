@@ -34,6 +34,12 @@
   available instead of being derived from the filename; also fixed a
   stale per-file variable in the enhanced-mode post-processing loop
 
+### Fixed
+- The run summary (and the 150-track-per-run cap) under-counted by one for
+  any link with exactly one track — single-track albums, playlists and
+  radios all skip the track-selection step, but the "always 1 track"
+  compensation previously applied only to single-video links
+
 ## v4.0 (2026-09-27)
 
 ### Zero-Python kernel
