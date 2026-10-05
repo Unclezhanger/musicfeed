@@ -164,8 +164,19 @@ m_ui_input() {
         echo "$v"; return 0
     fi
     [ -n "$prompt" ] && printf '\033[2m%s\033[0m\n' "$prompt" >&2
-    printf '%s \033[2m[%s]\033[0m: ' "$title" "$def" >&2
-    local v2; m_ui_readline v2
+    local v2 pp
+    if ( : < /dev/tty ) 2>/dev/null; then
+        # v4.1: 自由文本改用 readline（read -e）——普通 read 的行编辑交给内核 tty，
+        # 其退格擦除按字节处理、不认中日韩字符的显示宽度，退格修改中文会列数错位
+        # 出乱码甚至撕出半个字符。readline 按字符+宽度编辑，根治。
+        # \001/\002 是 readline 的提示串忽略标记，让宽度计算跳过 ANSI 色码
+        # （printf -v 让 \001/\033 成为真实控制字节，双引号里它们只是字面文本）
+        printf -v pp '%s \001\033[2m\002[%s]\001\033[0m\002: ' "$title" "$def"
+        IFS= read -r -e -p "$pp" v2 < /dev/tty
+    else
+        printf '%s \033[2m[%s]\033[0m: ' "$title" "$def" >&2
+        IFS= read -r v2
+    fi
     [ -z "$v2" ] && v2="$def"
     echo "$v2"
 }

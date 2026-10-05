@@ -39,6 +39,11 @@
   any link with exactly one track — single-track albums, playlists and
   radios all skip the track-selection step, but the "always 1 track"
   compensation previously applied only to single-video links
+- Backspace-editing Chinese text in free-text inputs (tags, artist,
+  subfolder names) no longer produces garbled/misaligned text: those
+  prompts now use readline (`read -e`), which edits by character and
+  display width instead of the kernel tty's byte-wise erase — this also
+  brings arrow-key editing and (in the manual path prompt) Tab completion
 
 ## v4.0 (2026-09-27)
 
