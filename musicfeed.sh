@@ -656,12 +656,18 @@ ui_confirm() {
     else
         ask "$title [y/N/b]: " "$title [y/N/b]: "
     fi
-    _ui_readline yn
-    case "$yn" in
-        b|B) return 255 ;;
-        n|N) return 1 ;;
-        *) return 0 ;;
-    esac
+    # v4.1: 回车 = 显示的默认值（旧实现任意输入/回车一律算"是"，与 [y/N] 提示矛盾）；
+    # 非法输入重问而不是静默当"是"
+    while :; do
+        _ui_readline yn
+        case "$yn" in
+            "") [ "$def" = "y" ] && return 0 || return 1 ;;
+            b|B) return 255 ;;
+            y|Y) return 0 ;;
+            n|N) return 1 ;;
+            *) echo "$(is_en && echo '  Please answer y / n / b' || echo '  请输入 y / n / b')" ;;
+        esac
+    done
 }
 
 # ── 自由文本输入 ─────────────────────────────
@@ -2042,7 +2048,14 @@ for album_entry in "${ALBUMS[@]}"; do
             SAFE_TITLE=$(echo "$MV_TITLE" | sed 's/[\/:*?"<>|]/-/g')
             NEW_NAME="${SAFE_ARTIST} - ${SAFE_TITLE}.$AUDIO_EXT"
             NEW_PATH="$FINAL_PATH/$NEW_NAME"
-            [ -f "$NEW_PATH" ] && NEW_PATH="$FINAL_PATH/${SAFE_ARTIST} - ${SAFE_TITLE}_$(date +%s).$AUDIO_EXT"
+            # v4.1: 目标已存在 → 去重（丢弃新副本），与常规曲目语义一致；
+            # 原来的 _$(date +%s) 后缀会让重跑同一 MV 不断制造重复文件
+            if [ -f "$NEW_PATH" ]; then
+                rm -f "$mv_f"
+                log "  🔁 Duplicate: exists $NEW_NAME, new copy removed" "info" "dedupe"
+                echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
+                continue
+            fi
             mv "$mv_f" "$NEW_PATH"
             log "  📝 Renamed: $(basename "$mv_f") → $NEW_NAME"
             CF=""; JSON_FILE="${NEW_PATH%.$AUDIO_EXT}.info.json"
@@ -2171,7 +2184,12 @@ for album_entry in "${ALBUMS[@]}"; do
                 SAFE_TITLE=$(echo "$TITLE" | sed 's/[\/:*?"<>|]/-/g')
                 NEW_NAME="${SAFE_ARTIST} - ${SAFE_TITLE}.$AUDIO_EXT"
                 NEW_PATH="$FINAL_PATH/$NEW_NAME"
-                [ -f "$NEW_PATH" ] && NEW_PATH="$FINAL_PATH/${SAFE_ARTIST} - ${SAFE_TITLE}_$(date +%s).$AUDIO_EXT"
+                if [ -f "$NEW_PATH" ]; then
+                    rm -f "$mv_f"
+                    log "  🔁 Duplicate: exists $NEW_NAME, new copy removed" "info" "dedupe"
+                    echo "$NEW_PATH" >> /tmp/existing_before_$$.txt
+                    continue
+                fi
                 mv "$mv_f" "$NEW_PATH"
                 log "  📝 Renamed: $(basename "$mv_f") → $NEW_NAME"
                 CF=""

@@ -150,8 +150,17 @@ m_ui_confirm() {
     fi
     local yn
     if [ "$def" = "y" ]; then echo -n "$title [Y/n]: " >&2; else echo -n "$title [y/N]: " >&2; fi
-    m_ui_readline yn
-    case "$yn" in n|N) return 1;; *) return 0;; esac
+    # v4.1: 回车 = 显示的默认值；非法输入重问
+    while :; do
+        m_ui_readline yn
+        case "$yn" in
+            "") [ "$def" = "y" ] && return 0 || return 1 ;;
+            n|N) return 1 ;;
+            b|B) return 1 ;;
+            y|Y) return 0 ;;
+            *) echo -n "$title [Y/n]: " >&2 ;;
+        esac
+    done
 }
 
 # m_ui_input "标题" 默认值 ["提示行"] → 输出文本
