@@ -463,6 +463,10 @@ get_playlist_info() {
 # stdout 5 行：album / title / artist / uploader / has_metadata(bool)
 get_single_info() {
     local url="$1"
+    # 剥离 &list= 参数：watch?v=X&list=RD… 的 Mix/Radio 形态会让 yt-dlp
+    # 展开整个播放列表（逐条 info.json，数百条，preview 长时间挂起）；
+    # single 语义只取当前视频
+    [[ "$url" == *"&list="* ]] && url="${url%%&list=*}"
     tmp_json="/tmp/ytm_single_$$"
     CLEANUP_FILES+=("${tmp_json}.info.json" "$tmp_json")
     "$MF_YTDLP" $MF_NODE_ARGS --write-info-json --skip-download -o "$tmp_json" "$url" >/dev/null 2>&1
@@ -1139,6 +1143,9 @@ for idx in "${!VALID_URLS[@]}"; do
         SONG_LIST_FULL=$(echo "$INFO" | tail -n +3); SONG_LIST=$(echo "$SONG_LIST_FULL" | sed 's/|.*//')
     else
         IS_SINGLE=true
+        # single 语义只取当前视频：剥离 &list= 参数，否则 watch?v=X&list=RD… 的
+        # Mix/Radio 形态会让 yt-dlp 把整个播放列表逐条下载成 temp 文件
+        [[ "$url" == *"&list="* ]] && { url="${url%%&list=*}"; VALID_URLS[$idx]="$url"; }
         SINGLE_INFO=$(get_single_info "$url")
         SINGLE_ALBUM=$(echo "$SINGLE_INFO" | sed -n '1p'); SINGLE_TITLE=$(echo "$SINGLE_INFO" | sed -n '2p')
         SINGLE_ARTIST=$(echo "$SINGLE_INFO" | sed -n '3p'); SINGLE_UPLOADER=$(echo "$SINGLE_INFO" | sed -n '4p')
