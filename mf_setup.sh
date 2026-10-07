@@ -525,6 +525,7 @@ step_ytdlp_ver() {
     o_nightly="$(is_en && echo 'Switch to NIGHTLY (faster anti-bot fixes, overwrite)' || echo '切换到 nightly 版（跟进反爬更快，覆盖）')"
     VSEL=$(m_ui_menu "$(is_en && echo "📦 yt-dlp version [current: ${YT_CUR_VER}]" || echo "📦 yt-dlp 版本管理〔当前 ${YT_CUR_VER}〕")" 1 "$o_keep" "$o_stable" "$o_nightly")
     [ $? -ne 0 ] && return 1
+    YTDLP_CHANNEL="stable"
     case "$VSEL" in
         2)
             if dl_ytdlp_channel stable "$SCRIPT_DIR/bin/yt-dlp"; then
@@ -533,6 +534,7 @@ step_ytdlp_ver() {
                 echo "  $(is_en && echo 'Download failed — keeping current yt-dlp.' || echo '下载失败——保留现有 yt-dlp。')"
             fi ;;
         3)
+            YTDLP_CHANNEL="nightly"
             if dl_ytdlp_channel nightly "$SCRIPT_DIR/bin/yt-dlp"; then
                 YTDLP_PATH="$SCRIPT_DIR/bin/yt-dlp"
             else
@@ -727,6 +729,9 @@ MF_HIDDEN_DIRS=$HIDDEN_DIRS_STR
 
 # 音频格式: opus / m4a
 MF_AUDIO_FORMAT=$AUDIO_FORMAT_Q
+
+# yt-dlp 更新频道 (stable / nightly)
+MF_YTDLP_CHANNEL="$YTDLP_CHANNEL"
 
 CFGEOF
 
