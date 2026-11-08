@@ -15,6 +15,14 @@
 #         nightly 实际落到 case 空分支、什么都不发生）；配置步骤重构为可
 #         回退状态机——Esc=返回上一步（第一步原地重选），whiptail/方向键
 #         层生效；隐藏文件夹空数组不再生成 ('' )
+# v4.0.8: yt-dlp 版本管理按真实通道工作——「保持当前」不再把通道误写为
+#         stable（此前 nightly 用户选保持，配置被写成 stable，下次 start.sh
+#         自动升级会用 stable 覆盖 nightly）；菜单显示当前通道与两通道最新
+#         版，选项 2/3 语义统一为「同通道=更新到最新，异通道=切换」；下载
+#         成功补写 .version sidecar（start.sh 的比对基准，避免下次启动白白
+#         重下）；首次安装先询问通道；node 检测升级为 >=22 校验（yt-dlp EJS
+#         运行时要求），缺失/过旧/项目内旧于钉版时可一键装项目内 bin/node
+#         （配置写 MF_NODE_PATH，不动系统安装）
 # ═════════════════════════════════════════════════
 
 # ── bash 版本检查 ──────────────────────────────
@@ -317,6 +325,14 @@ echo ""
 # ═════════════════════════════════════════════════
 YTDLP_PATH=""
 VENV_DIR=""
+# v4.0.8: yt-dlp 更新频道初始化为现有配置值（无配置留空，首次安装/版本步会赋值）。
+# 「保持当前」按真实通道写回，绝不默认 stable——nightly 被覆写的根因就在这
+YTDLP_CHANNEL=$(grep '^MF_YTDLP_CHANNEL=' "$SCRIPT_DIR/mf_config.sh" 2>/dev/null | sed -E 's/^MF_YTDLP_CHANNEL="?([^"]*)"?.*/\1/')
+# 项目内 node 钉版（yt-dlp EJS 运行时要求 node>=22；升级 = 改此变量重跑本脚本）
+NODE_PIN="22.23.4"
+# 项目内 node 安装路径（安装后非空 → 配置写 MF_NODE_PATH；与 v4.0.7 弃用的
+# 环境 NODE_PATH 变量无关，名字刻意错开）
+SETUP_NODE_LOCAL=""
 
 DEP_REPORT_FILE=""
 # v4.0.5: 检测行同写终端与报告文件——whiptail 摘要弹窗直接读文件渲染；
@@ -374,10 +390,22 @@ check_deps() {
         MISSING+=("curl")
     fi
 
-    if command -v node &>/dev/null; then
-        _dep_say "  ✅ node: $(command -v node)"
+    # v4.0.8: node 校验升级——yt-dlp 的 EJS JS 运行时要求 node>=22（node 20 会被
+    # 判 unsupported，YouTube 反爬场景格式缺失/403）。项目内 bin/node 优先于系统
+    if [ -x "$SCRIPT_DIR/bin/node" ]; then
+        _node_ver="$("$SCRIPT_DIR/bin/node" --version 2>/dev/null)"
+        _dep_say "  ✅ node: $_node_ver ($SCRIPT_DIR/bin/node, project)"
+        SETUP_NODE_LOCAL="$SCRIPT_DIR/bin/node"
+    elif command -v node &>/dev/null; then
+        _node_ver="$(node --version 2>/dev/null)"
+        _node_major="${_node_ver#v}"; _node_major="${_node_major%%.*}"
+        if [ -n "$_node_major" ] && [ "$_node_major" -ge 22 ] 2>/dev/null; then
+            _dep_say "  ✅ node: $_node_ver ($(command -v node))"
+        else
+            _dep_say "  ⚠️  node: ${_node_ver:-$(command -v node)} $(is_en && echo '— yt-dlp JS runtime requires >=22 (EJS); project-local install recommended' || echo '— yt-dlp JS 运行时要求 >=22（EJS），建议安装项目内 node')"
+        fi
     else
-        _dep_say "  ⚠️  node: $(is_en && echo 'not found (recommended — required by yt-dlp for some links)' || echo '未找到（部分链接可能需要，建议安装）')"
+        _dep_say "  ⚠️  node: $(is_en && echo 'not found — yt-dlp JS runtime requires >=22 (EJS); project-local install recommended' || echo '未找到——yt-dlp JS 运行时要求 >=22（EJS），建议安装项目内 node')"
     fi
 
     # v4.0.5: macOS 提示——内核打标签链路用了 GNU sed/base64 专属参数，BSD 工具链
@@ -438,6 +466,9 @@ dl_ytdlp_channel() {
     fi
     if [ -s "$dest" ]; then
         chmod +x "$dest"
+        # v4.0.8: 补写 .version sidecar——start.sh 启动时以它和频道最新版比对，
+        # 不写的话下次启动会把刚下载的二进制原样重下一次
+        "$dest" --version > "$dest.version" 2>/dev/null
         echo "  ✅ yt-dlp ($channel): $dest ($("$dest" --version 2>/dev/null))"
         return 0
     fi
@@ -470,8 +501,17 @@ install_missing() {
     if [[ " ${MISSING[*]} " == *" yt-dlp "* ]]; then
         echo ""
         echo "$(is_en && echo '⬇️  Installing yt-dlp standalone binary (no Python needed)...' || echo '⬇️  安装 yt-dlp 单文件二进制（无需 Python）...')"
-        if dl_ytdlp_channel stable "$SCRIPT_DIR/bin/yt-dlp"; then
+        # v4.0.8: 首次安装先问通道（此前硬编码 stable 不问）
+        local CH
+        CH=$(m_ui_menu "$(is_en && echo ' yt-dlp update channel' || echo ' yt-dlp 更新通道')" 1 \
+            "$(is_en && echo 'stable — official latest stable (recommended)' || echo 'stable —— 官方最新稳定版（推荐）')" \
+            "$(is_en && echo 'nightly — faster anti-bot fixes, less tested' || echo 'nightly —— 反爬修复跟进更快，稳定性稍弱')")
+        [ $? -ne 0 ] && CH=1
+        local _channel="stable"
+        [ "$CH" = "2" ] && _channel="nightly"
+        if dl_ytdlp_channel "$_channel" "$SCRIPT_DIR/bin/yt-dlp"; then
             YTDLP_PATH="$SCRIPT_DIR/bin/yt-dlp"
+            YTDLP_CHANNEL="$_channel"
         else
             return 1
         fi
@@ -507,39 +547,141 @@ if [ ${#MISSING[@]} -gt 0 ]; then
     exit 1
 fi
 
+# ── v4.0.8: node 就位检查（yt-dlp EJS 运行时要求 >=22）──
+# 不算 MISSING（内核多数链接无 node 也能下），但缺失/过旧时主动提供项目内安装：
+# bin/node + 配置 MF_NODE_PATH（内核唯一的 node 消费点 --js-runtimes），不动系统。
+# 项目内 node 旧于钉版同样提供更新。系统 node 已 >=22 时不打扰。
+install_project_node_mf() {
+    local ver="$NODE_PIN" asset
+    case "$(uname -m)" in
+        aarch64|arm64) asset="linux-arm64" ;;
+        *)             asset="linux-x64" ;;
+    esac
+    echo "$(is_en && echo "⬇️  Downloading Node.js v$ver ($asset) → $SCRIPT_DIR/bin/node ..." || echo "⬇️  下载 Node.js v$ver（$asset）→ $SCRIPT_DIR/bin/node ...")"
+    mkdir -p "$SCRIPT_DIR/bin"
+    # --strip-components=2：成员 node-vX-linux-x64/bin/node → 直接落为 bin/node
+    # （=1 会得到 bin/bin/node 嵌套，[ -x bin/node ] 永远失败）
+    if curl -fsSL --retry 3 "https://nodejs.org/dist/v$ver/node-v$ver-$asset.tar.xz" -o /tmp/mf-node.tar.xz \
+        && tar -xJf /tmp/mf-node.tar.xz -C "$SCRIPT_DIR/bin" --strip-components=2 "node-v$ver-$asset/bin/node" \
+        && rm -f /tmp/mf-node.tar.xz \
+        && [ -x "$SCRIPT_DIR/bin/node" ]; then
+        SETUP_NODE_LOCAL="$SCRIPT_DIR/bin/node"
+        echo "  ✅ $(is_en && echo "project node: $($SCRIPT_DIR/bin/node --version 2>/dev/null) (config MF_NODE_PATH will point here)" || echo "项目内 node：$($SCRIPT_DIR/bin/node --version 2>/dev/null)（配置 MF_NODE_PATH 将指向此处）")"
+        return 0
+    fi
+    rm -f /tmp/mf-node.tar.xz
+    echo "  ❌ $(is_en && echo 'node download failed — continuing without it' || echo 'node 下载失败——继续（无 node 也可运行）')"
+    return 1
+}
+mf_ver_ge() { [ "$1" = "$(printf '%s\n' "$1" "$2" | sort -V | tail -1)" ]; }
+maybe_install_node() {
+    local node_bin="$SCRIPT_DIR/bin/node" cur="" major=""
+    [ -x "$node_bin" ] && cur="$("$node_bin" --version 2>/dev/null)"
+    if [ -z "$cur" ] && command -v node &>/dev/null; then
+        cur="$(node --version 2>/dev/null)"
+    fi
+    major="${cur#v}"; major="${major%%.*}"
+    if [ -n "$major" ] && [ "$major" -ge 22 ] 2>/dev/null; then
+        # 已达标。项目内且旧于钉版 → 提供更新；其余只报状态
+        if [ -x "$node_bin" ] && [ -n "$cur" ] && ! mf_ver_ge "${cur#v}" "$NODE_PIN"; then
+            echo ""
+            m_ui_confirm "$(is_en && echo "  Project node $cur is older than pinned v$NODE_PIN — update it?" || echo "  项目内 node $cur 旧于钉版 v$NODE_PIN——更新吗？")" y \
+                && install_project_node_mf
+        else
+            local _src=""
+            [ -x "$node_bin" ] && _src="(project)"
+            echo "$(is_en && echo "✅ node OK: ${cur}${_src:+ $_src}" || echo "✅ node 达标：${cur}${_src:+ $_src}")"
+        fi
+        return 0
+    fi
+    # 缺失或 <22 → 建议安装
+    echo ""
+    echo "$(is_en && echo "⚠️  node ${cur:-not found} — yt-dlp's JS runtime (EJS) requires >=22; without it YouTube downloads may hit missing formats / bot checks." || echo "⚠️  node ${cur:-未找到}——yt-dlp 的 JS 运行时（EJS）要求 >=22，缺失时 YouTube 下载可能格式缺失/触发反爬。")"
+    if m_ui_confirm "$(is_en && echo "  Install project-local Node.js v$NODE_PIN → $node_bin (config MF_NODE_PATH; system install untouched)? [recommended]" || echo "  安装项目内 Node.js v$NODE_PIN → $node_bin（配置写 MF_NODE_PATH；不动系统安装）？[推荐]")" y; then
+        install_project_node_mf
+    fi
+    return 0
+}
+maybe_install_node
+
 # ═════════════════════════════════════════════════
 # 2.5–6 可回退配置步骤（v4.0.7 状态机：Esc = 返回上一步；已在第一步时原地重选）
 # 与主脚本内核的步骤状态机同模式：步骤函数返回 0=通过/继续，1=用户要求回退
 # ═════════════════════════════════════════════════
 
 # ── step: yt-dlp 版本管理（更新 / 通道切换）──
-# YouTube 反爬更新频繁，旧版 yt-dlp 可能突然整体失效——即使环境检测已通过，
-# 这里也照常提供更新/切换入口：用户随时重跑本向导即可拉取最新 stable 或
-# 切到 nightly，无需手动删除二进制
+# v4.0.8 起按「真实通道」工作：显示当前版本+通道与两通道最新版；「保持当前」
+# 按真实通道写回配置（此前无条件写 stable，nightly 用户选保持会被下次 start.sh
+# 的自动升级用 stable 覆盖）；选项 2/3 = 同通道更新到最新 / 异通道切换（选中即
+# 下载 + 持久化通道）。通道内日常更新由 start.sh 启动检测负责，本步管「选通道」。
 step_ytdlp_ver() {
     echo "$(is_en && echo '── 📦 yt-dlp Version ──' || echo '── 📦 yt-dlp 版本管理 ──')"
     echo ""
     YT_CUR_VER="$("$YTDLP_PATH" --version 2>/dev/null || echo 'unknown')"
-    o_keep="$(is_en && echo 'Keep current version (no update)' || echo '保持当前版本（不更新）')"
-    o_stable="$(is_en && echo 'Update to latest STABLE (overwrite)' || echo '更新到最新稳定版 stable（覆盖）')"
-    o_nightly="$(is_en && echo 'Switch to NIGHTLY (faster anti-bot fixes, overwrite)' || echo '切换到 nightly 版（跟进反爬更快，覆盖）')"
-    VSEL=$(m_ui_menu "$(is_en && echo "📦 yt-dlp version [current: ${YT_CUR_VER}]" || echo "📦 yt-dlp 版本管理〔当前 ${YT_CUR_VER}〕")" 1 "$o_keep" "$o_stable" "$o_nightly")
+    # 当前通道：配置值优先；无配置时与两通道最新版比对猜测；都判不出按 stable 对待
+    local _latest_s="" _latest_n=""
+    _latest_s=$(curl -fsSL --max-time 8 "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest" 2>/dev/null | jq -r '.tag_name // empty' 2>/dev/null)
+    _latest_n=$(curl -fsSL --max-time 8 "https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest" 2>/dev/null | jq -r '.tag_name // empty' 2>/dev/null)
+    # api.github.com 匿名限额 60 次/小时/IP，超额时回退 github.com 302 Location（不计配额）
+    [ -z "$_latest_s" ] && _latest_s=$(curl -fsSI --max-time 8 "https://github.com/yt-dlp/yt-dlp/releases/latest" 2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation:.*\/releases\/tag\///p' | head -1)
+    [ -z "$_latest_n" ] && _latest_n=$(curl -fsSI --max-time 8 "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest" 2>/dev/null | tr -d '\r' | sed -n 's/^[Ll]ocation:.*\/releases\/tag\///p' | head -1)
+    if [ -n "$YTDLP_CHANNEL" ]; then
+        YT_CUR_CHANNEL="$YTDLP_CHANNEL"
+    elif [ -n "$_latest_s" ] && [ "$YT_CUR_VER" = "$_latest_s" ]; then
+        YT_CUR_CHANNEL="stable"
+    elif [ -n "$_latest_n" ] && [ "$YT_CUR_VER" = "$_latest_n" ]; then
+        YT_CUR_CHANNEL="nightly"
+    else
+        YT_CUR_CHANNEL="stable"
+    fi
+    # 状态行（含过时提示；GitHub API 失败显示 ?，菜单照常可用）
+    local _s_note="" _n_note="" _guess=""
+    if [ -n "$_latest_s" ] && [ "$YT_CUR_VER" != "$_latest_s" ]; then _s_note="$(is_en && echo ' (update available)' || echo '（有更新）')"; fi
+    if [ -n "$_latest_n" ] && [ "$YT_CUR_VER" != "$_latest_n" ]; then _n_note="$(is_en && echo ' (update available)' || echo '（有更新）')"; fi
+    [ -z "$YTDLP_CHANNEL" ] && _guess="$(is_en && echo ' (guessed)' || echo '（推测）')"
+    echo "$(is_en && echo "  Current: $YT_CUR_VER · $YT_CUR_CHANNEL$_guess" || echo "  当前：$YT_CUR_VER · $YT_CUR_CHANNEL$_guess")"
+    echo "$(is_en && echo "  Latest stable: ${_latest_s:-?}$_s_note   Latest nightly: ${_latest_n:-?}$_n_note" || echo "  最新 stable：${_latest_s:-?}$_s_note ｜ 最新 nightly：${_latest_n:-?}$_n_note")"
+    echo ""
+
+    # 动态标签：同通道 = 更新到最新，异通道 = 切换
+    local o_keep o_stable o_nightly
+    o_keep="$(is_en && echo "Keep current ($YT_CUR_CHANNEL · $YT_CUR_VER)" || echo "保持当前（$YT_CUR_CHANNEL · $YT_CUR_VER）")"
+    if [ "$YT_CUR_CHANNEL" = "stable" ]; then
+        if [ -n "$_latest_s" ] && [ "$YT_CUR_VER" != "$_latest_s" ]; then
+            o_stable="$(is_en && echo "Update to latest stable ($YT_CUR_VER → $_latest_s)" || echo "更新到最新 stable（$YT_CUR_VER → $_latest_s）")"
+        else
+            o_stable="$(is_en && echo "Re-download latest stable${_latest_s:+ ($_latest_s)}" || echo "重下最新 stable${_latest_s:+（$_latest_s）}")"
+        fi
+        o_nightly="$(is_en && echo "Switch to NIGHTLY${_latest_n:+ ($_latest_n)} (faster anti-bot fixes)" || echo "切换到 nightly${_latest_n:+（$_latest_n）}（反爬修复跟进更快）")"
+    else
+        if [ -n "$_latest_n" ] && [ "$YT_CUR_VER" != "$_latest_n" ]; then
+            o_nightly="$(is_en && echo "Update to latest nightly ($YT_CUR_VER → $_latest_n)" || echo "更新到最新 nightly（$YT_CUR_VER → $_latest_n）")"
+        else
+            o_nightly="$(is_en && echo "Re-download latest nightly${_latest_n:+ ($_latest_n)}" || echo "重下最新 nightly${_latest_n:+（$_latest_n）}")"
+        fi
+        o_stable="$(is_en && echo "Switch to STABLE${_latest_s:+ ($_latest_s)}" || echo "切换到 stable${_latest_s:+（$_latest_s）}")"
+    fi
+
+    VSEL=$(m_ui_menu "$(is_en && echo "📦 yt-dlp version [current: $YT_CUR_VER · $YT_CUR_CHANNEL]" || echo "📦 yt-dlp 版本管理〔当前 $YT_CUR_VER · $YT_CUR_CHANNEL〕")" 1 "$o_keep" "$o_stable" "$o_nightly")
     [ $? -ne 0 ] && return 1
-    YTDLP_CHANNEL="stable"
     case "$VSEL" in
         2)
+            YTDLP_CHANNEL="stable"
             if dl_ytdlp_channel stable "$SCRIPT_DIR/bin/yt-dlp"; then
                 YTDLP_PATH="$SCRIPT_DIR/bin/yt-dlp"
             else
-                echo "  $(is_en && echo 'Download failed — keeping current yt-dlp.' || echo '下载失败——保留现有 yt-dlp。')"
+                echo "  $(is_en && echo 'Download failed — current binary kept; channel set to stable, next start.sh run will retry it.' || echo '下载失败——保留现有 yt-dlp；通道已记为 stable，下次 start.sh 启动会按此补下。')"
             fi ;;
         3)
             YTDLP_CHANNEL="nightly"
             if dl_ytdlp_channel nightly "$SCRIPT_DIR/bin/yt-dlp"; then
                 YTDLP_PATH="$SCRIPT_DIR/bin/yt-dlp"
             else
-                echo "  $(is_en && echo 'Download failed — keeping current yt-dlp.' || echo '下载失败——保留现有 yt-dlp。')"
+                echo "  $(is_en && echo 'Download failed — current binary kept; channel set to nightly, next start.sh run will retry it.' || echo '下载失败——保留现有 yt-dlp；通道已记为 nightly，下次 start.sh 启动会按此补下。')"
             fi ;;
+        *)
+            # 保持当前：按真实通道写回配置，不下载任何东西
+            YTDLP_CHANNEL="$YT_CUR_CHANNEL" ;;
     esac
     if [ "$VSEL" != "1" ] && [ "$YTDLP_PATH" = "$SCRIPT_DIR/bin/yt-dlp" ]; then
         echo "  📝 $(is_en && echo "Config will point to $YTDLP_PATH (managed inside the project folder, system install untouched)" || echo "配置将指向 $YTDLP_PATH（项目内自管理，不动系统安装）")"
@@ -694,8 +836,9 @@ HIDDEN_DIRS_STR+=")"
 MF_LANG_Q=$(shell_quote "$MF_LANG")
 BASE_DIR_Q=$(shell_quote "$BASE_DIR")
 YTDLP_PATH_Q=$(shell_quote "$YTDLP_PATH")
-NODE_PATH_Q=$(shell_quote "")   # v4.0.7: 不再读环境变量 NODE_PATH（Node 官方模块路径变量）——此前
-                           # 若用户环境设了它会被误写进配置，干扰 yt-dlp 的 JS 运行时探测
+# v4.0.8: 项目内 node（bin/node）安装后写 MF_NODE_PATH；与 v4.0.7 弃用的环境
+# NODE_PATH（Node 官方模块路径变量，避免误读进配置）名字刻意错开
+NODE_PATH_Q=$(shell_quote "$SETUP_NODE_LOCAL")
 DEFAULT_ARTIST_DIR_Q=$(shell_quote "$DEFAULT_ARTIST_DIR")
 AUDIO_FORMAT_Q=$(shell_quote "$AUDIO_FORMAT")
 VENV_DIR_Q=$(shell_quote "${VENV_DIR:-}")
@@ -731,7 +874,7 @@ MF_HIDDEN_DIRS=$HIDDEN_DIRS_STR
 MF_AUDIO_FORMAT=$AUDIO_FORMAT_Q
 
 # yt-dlp 更新频道 (stable / nightly)
-MF_YTDLP_CHANNEL="$YTDLP_CHANNEL"
+MF_YTDLP_CHANNEL="${YTDLP_CHANNEL:-stable}"
 
 CFGEOF
 
